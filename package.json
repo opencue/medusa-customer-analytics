@@ -1,15 +1,21 @@
 {
   "name": "medusa-customer-analytics",
   "version": "0.1.0",
-  "description": "Tracks how far each shopper got on the way to an order — a seven-rung funnel from cart to completed, an admin dashboard, and win-back candidates.",
+  "description": "Checkout funnel analytics for Medusa v2 — tracks how far each shopper got on the way to an order across a seven-rung funnel from cart to completed, with an admin dashboard, abandoned-cart product ranking, and win-back promotion drafts.",
   "license": "MIT",
   "keywords": [
     "medusa-plugin",
     "medusa-v2",
     "medusa-plugin-analytics",
+    "medusa",
+    "medusajs",
     "analytics",
     "funnel",
-    "abandoned-cart"
+    "checkout-funnel",
+    "abandoned-cart",
+    "cart-abandonment",
+    "conversion-rate",
+    "ecommerce"
   ],
   "files": [
     ".medusa/server",
