@@ -1,0 +1,70 @@
+name: Release
+
+# Publishing is driven by a tag, and the tag alone is not enough: the unit
+# suite has to be green and the plugin has to build before anything reaches
+# npm. A version can never be unpublished cleanly, so the gate runs first.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and test only — do not publish"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  # Required for npm provenance: the workflow signs the package with an OIDC
+  # token so npm can show where the tarball was built.
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit tests
+        run: pnpm exec jest --runInBand --forceExit
+
+      - name: Build plugin
+        run: pnpm exec medusa plugin:build
+
+      - name: Verify the tag matches package.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $pkg" >&2
+            exit 1
+          fi
+
+      # The build output is what actually ships — package.json restricts files
+      # to .medusa/server, so an empty build would publish an empty package.
+      - name: Verify the build output is present
+        run: |
+          test -f .medusa/server/src/modules/checkout_tracking/index.js
+          test -f .medusa/server/src/api/store/checkout-tracking/route.js
+          test -f .medusa/server/src/api/admin/checkout-tracking/route.js
+
+      - name: Publish to npm
+        if: startsWith(github.ref, 'refs/tags/v') && inputs.dry_run != true
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
