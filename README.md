@@ -1,5 +1,10 @@
 # medusa-customer-analytics
 
+[![npm version](https://img.shields.io/npm/v/medusa-customer-analytics?color=cb3837&logo=npm)](https://www.npmjs.com/package/medusa-customer-analytics)
+[![downloads](https://img.shields.io/npm/dt/medusa-customer-analytics?color=0b7285&label=downloads)](https://www.npmjs.com/package/medusa-customer-analytics)
+[![Medusa](https://img.shields.io/badge/Medusa-v2-8b5cf6)](https://docs.medusajs.com/)
+[![license](https://img.shields.io/npm/l/medusa-customer-analytics?color=444)](./LICENSE)
+
 Answers one question about your storefront: **how far did each shopper get, and
 where did they stop?**
 

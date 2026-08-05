@@ -12,7 +12,9 @@
     "abandoned-cart"
   ],
   "files": [
-    ".medusa/server"
+    ".medusa/server",
+    "LICENSE",
+    "README.md"
   ],
   "exports": {
     "./package.json": "./package.json",
@@ -70,5 +72,6 @@
   "bugs": {
     "url": "https://github.com/opencue/medusa-customer-analytics/issues"
   },
-  "homepage": "https://github.com/opencue/medusa-customer-analytics#readme"
+  "homepage": "https://github.com/opencue/medusa-customer-analytics#readme",
+  "author": "Webu (https://webu.sk)"
 }
