@@ -88,16 +88,86 @@ describe("buildDashboard — totals", () => {
   const mixed = () =>
     buildDashboard({
       carts: [
-        cart({ id: "cart_1", total: 100 }),
-        cart({ id: "cart_2", total: 250, shipping_methods: [{ id: "sm" }] }),
+        cart({ id: "cart_1", total: 100, email: "a@x.sk" }),
+        cart({
+          id: "cart_2",
+          total: 250,
+          email: "b@x.sk",
+          shipping_methods: [{ id: "sm" }],
+        }),
         cart({
           id: "cart_3",
+          total: 400,
+          email: "c@x.sk",
+          completed_at: "2026-08-03T10:10:00.000Z",
+        }),
+      ],
+      journeys: [],
+    })
+
+  it("counts a shopper once however many carts they left behind", () => {
+    // Same email, three carts. Counting carts made this one person look like
+    // three abandonments worth 3x the money, and divided the conversion rate
+    // by three.
+    const out = buildDashboard({
+      carts: [
+        cart({ id: "cart_1", email: "anna@x.sk", total: 100 }),
+        cart({ id: "cart_2", email: "anna@x.sk", total: 100 }),
+        cart({
+          id: "cart_3",
+          email: "anna@x.sk",
+          total: 100,
+          shipping_methods: [{ id: "sm" }],
+        }),
+      ],
+      journeys: [],
+    })
+
+    expect(out.totals.tracked).toBe(1)
+    expect(out.totals.abandoned).toBe(1)
+    expect(out.totals.lost_value).toBe(100)
+    expect(out.totals.duplicate_carts).toBe(2)
+    expect(out.visitors).toHaveLength(1)
+    // The cart that got furthest leads, so the operator calls about that one.
+    expect(out.visitors[0].lead.cart_id).toBe("cart_3")
+    expect(out.visitors[0].cart_count).toBe(3)
+    // Every cart is still there to audit the merge.
+    expect(out.sessions).toHaveLength(3)
+  })
+
+  it("does not count one product twice because a shopper re-added it", () => {
+    const out = buildDashboard({
+      carts: [
+        cart({ id: "cart_1", email: "anna@x.sk" }),
+        cart({ id: "cart_2", email: "anna@x.sk" }),
+      ],
+      journeys: [],
+    })
+
+    expect(out.abandoned_products).toHaveLength(1)
+    expect(out.abandoned_products[0].carts).toBe(1)
+  })
+
+  it("an order anywhere in the group makes the shopper converted", () => {
+    const out = buildDashboard({
+      carts: [
+        cart({ id: "cart_1", email: "anna@x.sk", total: 100 }),
+        cart({
+          id: "cart_2",
+          email: "anna@x.sk",
           total: 400,
           completed_at: "2026-08-03T10:10:00.000Z",
         }),
       ],
       journeys: [],
     })
+
+    expect(out.totals.completed).toBe(1)
+    expect(out.totals.abandoned).toBe(0)
+    expect(out.totals.lost_value).toBe(0)
+    expect(out.totals.converted_value).toBe(400)
+    expect(out.totals.conversion_rate).toBe(1)
+  })
 
   it("splits converted from lost value", () => {
     const { totals } = mixed()
@@ -345,7 +415,10 @@ describe("buildDashboard — abandoned products", () => {
 
   it("groups the same variant across different carts", () => {
     const out = buildDashboard({
-      carts: [cart({ id: "cart_1" }), cart({ id: "cart_2" })],
+      carts: [
+        cart({ id: "cart_1", email: "a@x.sk" }),
+        cart({ id: "cart_2", email: "b@x.sk" }),
+      ],
       journeys: [],
     })
     expect(out.abandoned_products).toHaveLength(1)
@@ -361,9 +434,13 @@ describe("buildDashboard — abandoned products", () => {
     })
     const out = buildDashboard({
       carts: [
-        cart({ id: "cart_1", items: [withSku("A", "A"), withSku("B", "B")] }),
-        cart({ id: "cart_2", items: [withSku("B", "B")] }),
-        cart({ id: "cart_3", items: [withSku("B", "B")] }),
+        cart({
+          id: "cart_1",
+          email: "a@x.sk",
+          items: [withSku("A", "A"), withSku("B", "B")],
+        }),
+        cart({ id: "cart_2", email: "b@x.sk", items: [withSku("B", "B")] }),
+        cart({ id: "cart_3", email: "c@x.sk", items: [withSku("B", "B")] }),
       ],
       journeys: [],
     })
@@ -374,7 +451,11 @@ describe("buildDashboard — abandoned products", () => {
 describe("buildDashboard — exit paths", () => {
   it("ranks the pages abandoned shoppers were last seen on", () => {
     const out = buildDashboard({
-      carts: [cart({ id: "cart_1" }), cart({ id: "cart_2" }), cart({ id: "cart_3" })],
+      carts: [
+        cart({ id: "cart_1", email: "a@x.sk" }),
+        cart({ id: "cart_2", email: "b@x.sk" }),
+        cart({ id: "cart_3", email: "c@x.sk" }),
+      ],
       journeys: [
         journey({ cart_id: "cart_1", last_path: "/sk/checkout" }),
         journey({ cart_id: "cart_2", last_path: "/sk/checkout" }),

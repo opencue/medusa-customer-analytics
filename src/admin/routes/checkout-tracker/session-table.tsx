@@ -15,9 +15,22 @@ import {
   STAGE_LABEL,
   type SessionItem,
   type SessionRow,
+  type VisitorGroup,
 } from "./types"
 
 const MAX_THUMBS = 3
+
+/**
+ * Why several carts were shown as one shopper. Surfaced on the row so a merge
+ * can be judged rather than taken on faith — the anonymous rule is a
+ * probability, not a fact.
+ */
+const MERGE_REASON: Record<VisitorGroup["matched_by"], string> = {
+  customer: "Rovnaký zákaznícky účet",
+  email: "Rovnaký e-mail",
+  repeat_cart: "Rovnaký košík z rovnakého zariadenia o pár minút",
+  single: "",
+}
 
 /**
  * Item thumbnails with a "+N" cap so a 12-item cart cannot blow up the row
@@ -127,15 +140,15 @@ const ExpandedItems = ({
  * that Medusa's admin does not have.
  */
 export const SessionTable = ({
-  sessions,
+  visitors,
   now,
 }: {
-  sessions: SessionRow[]
+  visitors: VisitorGroup[]
   now: number
 }) => {
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  if (!sessions.length) {
+  if (!visitors.length) {
     return (
       <Text size="small" className="mt-4 text-ui-fg-subtle">
         Žiadne košíky pre zvolený filter.
@@ -161,14 +174,16 @@ export const SessionTable = ({
           </tr>
         </thead>
         <tbody>
-          {sessions.map((session) => {
-            const isOpen = expanded === session.cart_id
+          {visitors.map((visitor) => {
+            // One row per shopper. `lead` is the cart that got furthest, so the
+            // row shows the state worth acting on rather than whichever cart
+            // happened to be created last.
+            const session = visitor.lead
+            const isOpen = expanded === visitor.key
             return (
-              <Fragment key={session.cart_id}>
+              <Fragment key={visitor.key}>
                 <tr
-                  onClick={() =>
-                    setExpanded(isOpen ? null : session.cart_id)
-                  }
+                  onClick={() => setExpanded(isOpen ? null : visitor.key)}
                   className="cursor-pointer border-b border-ui-border-base align-middle transition-colors hover:bg-ui-bg-subtle-hover"
                 >
                   <td className="py-2.5 pr-3">
@@ -197,6 +212,15 @@ export const SessionTable = ({
                       {session.customer_id ? (
                         <Badge size="2xsmall" color="grey">
                           účet
+                        </Badge>
+                      ) : null}
+                      {visitor.cart_count > 1 ? (
+                        <Badge
+                          size="2xsmall"
+                          color="orange"
+                          title={MERGE_REASON[visitor.matched_by]}
+                        >
+                          {visitor.cart_count} košíky
                         </Badge>
                       ) : null}
                     </div>
@@ -251,6 +275,25 @@ export const SessionTable = ({
                         items={session.items}
                         currency={session.currency_code}
                       />
+                      {visitor.cart_count > 1 ? (
+                        <div className="mt-2 px-3">
+                          <div className="text-[10.5px] uppercase tracking-wide text-ui-fg-muted">
+                            {MERGE_REASON[visitor.matched_by]}
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1">
+                            {visitor.carts.map((c) => (
+                              <span
+                                key={c.cart_id}
+                                className="font-mono text-[10.5px] text-ui-fg-subtle"
+                                title={formatDateTime(c.created_at)}
+                              >
+                                {shortId(c.cart_id)}
+                                {c.cart_id === session.cart_id ? " ←" : ""}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                     </td>
                   </tr>
                 ) : null}

@@ -37,6 +37,14 @@ export type SessionItem = {
   is_gift: boolean
 }
 
+export type VisitorGroup = {
+  key: string
+  matched_by: "customer" | "email" | "repeat_cart" | "single"
+  lead: SessionRow
+  carts: SessionRow[]
+  cart_count: number
+}
+
 export type SessionRow = {
   cart_id: string
   email: string | null
@@ -80,6 +88,8 @@ export type TrackerResponse = {
     currency: string
     with_storefront_data: number
   }
+  /** One entry per shopper; `lead` is the cart worth acting on. */
+  visitors: VisitorGroup[]
   sessions: SessionRow[]
   abandoned_products: AbandonedProduct[]
   exit_paths: Array<{ path: string; count: number }>

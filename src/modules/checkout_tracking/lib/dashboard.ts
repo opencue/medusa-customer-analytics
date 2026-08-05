@@ -16,6 +16,7 @@ import {
   type FunnelStage,
 } from "./stages"
 import type { JourneyRow } from "./journey"
+import { groupSessionsByVisitor, type VisitorGroup } from "./visitors"
 
 export type CartItemRow = {
   id?: string | null
@@ -103,11 +104,16 @@ export type DashboardTotals = {
   currency: string
   /** Journeys the storefront beacon contributed to (i.e. consented visitors). */
   with_storefront_data: number
+  /** Carts folded into an earlier visitor by the grouping rules. */
+  duplicate_carts: number
 }
 
 export type Dashboard = {
   funnel: FunnelRow[]
   totals: DashboardTotals
+  /** One entry per shopper, each carrying every cart attributed to them. */
+  visitors: VisitorGroup[]
+  /** Every cart, ungrouped — kept for exports and for auditing a merge. */
   sessions: SessionRow[]
   abandoned_products: AbandonedProduct[]
   exit_paths: ExitPath[]
@@ -269,8 +275,15 @@ export const buildDashboard = ({
   // call back, and the freshest abandonment is the one still worth saving.
   sessions.sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))
 
-  const abandoned = sessions.filter((s) => s.stage !== "completed")
-  const completed = sessions.filter((s) => s.stage === "completed")
+  // Everything below counts VISITORS, not carts. One shopper who rebuilt the
+  // same cart three times is one abandonment worth one call-back, not three —
+  // counting carts inflated the abandoned total and the lost value, and
+  // divided the conversion rate by the duplicates.
+  const visitors = groupSessionsByVisitor(sessions)
+  const abandonedVisitors = visitors.filter((v) => v.lead.stage !== "completed")
+  const completedVisitors = visitors.filter((v) => v.lead.stage === "completed")
+  const abandoned = abandonedVisitors.map((v) => v.lead)
+  const completed = completedVisitors.map((v) => v.lead)
 
   const products = new Map<string, AbandonedProduct>()
   for (const session of abandoned) {
@@ -314,19 +327,23 @@ export const buildDashboard = ({
     sessions.find((s) => s.currency_code)?.currency_code ?? defaultCurrency
 
   return {
-    funnel: buildFunnel(sessions.map((s) => s.stage)),
+    funnel: buildFunnel(visitors.map((v) => v.lead.stage)),
+    visitors,
     totals: {
-      tracked: sessions.length,
-      completed: completed.length,
-      abandoned: abandoned.length,
-      conversion_rate: sessions.length
-        ? completed.length / sessions.length
+      tracked: visitors.length,
+      completed: completedVisitors.length,
+      abandoned: abandonedVisitors.length,
+      conversion_rate: visitors.length
+        ? completedVisitors.length / visitors.length
         : 0,
       lost_value: abandoned.reduce((sum, s) => sum + s.total, 0),
       converted_value: completed.reduce((sum, s) => sum + s.total, 0),
       currency,
-      with_storefront_data: sessions.filter((s) => s.observed_by !== "cart")
-        .length,
+      with_storefront_data: visitors.filter((v) =>
+        v.carts.some((c) => c.observed_by !== "cart")
+      ).length,
+      /** Carts folded into an earlier visitor — how much noise was removed. */
+      duplicate_carts: sessions.length - visitors.length,
     },
     sessions,
     abandoned_products: [...products.values()]

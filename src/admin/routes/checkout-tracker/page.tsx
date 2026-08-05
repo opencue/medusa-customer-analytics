@@ -165,11 +165,13 @@ const CheckoutTrackerPage = () => {
     [data]
   )
 
-  const sessions = useMemo(() => {
+  // Filters read the lead cart: it is the state the shopper actually reached,
+  // and the row the operator sees.
+  const visitors = useMemo(() => {
     if (!data) return []
-    return data.sessions.filter((session) => {
-      if (stageFilter && session.stage !== stageFilter) return false
-      if (onlyContactable && !session.email) return false
+    return data.visitors.filter(({ lead }) => {
+      if (stageFilter && lead.stage !== stageFilter) return false
+      if (onlyContactable && !lead.email) return false
       return true
     })
   }, [data, stageFilter, onlyContactable])
@@ -177,7 +179,9 @@ const CheckoutTrackerPage = () => {
   const contactable = useMemo(
     () =>
       data
-        ? data.sessions.filter((s) => s.email && s.stage !== "completed").length
+        ? data.visitors.filter(
+            (v) => v.lead.email && v.lead.stage !== "completed"
+          ).length
         : 0,
     [data]
   )
@@ -307,8 +311,8 @@ const CheckoutTrackerPage = () => {
             title="Zákazníci"
             sub={
               stageFilter
-                ? `Skončili na kroku „${STAGE_LABEL[stageFilter]}“ · ${sessions.length}`
-                : `Všetky sledované košíky · ${sessions.length}`
+                ? `Skončili na kroku „${STAGE_LABEL[stageFilter]}“ · ${visitors.length}`
+                : `Všetky sledované košíky · ${visitors.length}`
             }
             action={
               <button
@@ -325,7 +329,7 @@ const CheckoutTrackerPage = () => {
               </button>
             }
           >
-            <SessionTable sessions={sessions} now={now} />
+            <SessionTable visitors={visitors} now={now} />
           </Card>
 
           <Text size="xsmall" className="text-ui-fg-muted">
