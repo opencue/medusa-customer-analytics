@@ -1,6 +1,6 @@
 {
   "name": "medusa-customer-analytics",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Checkout funnel analytics for Medusa v2 — tracks how far each shopper got on the way to an order across a seven-rung funnel from cart to completed, with an admin dashboard, abandoned-cart product ranking, and win-back promotion drafts.",
   "license": "MIT",
   "keywords": [
@@ -59,14 +59,12 @@
     "typescript": "^5.6.2"
   },
   "peerDependencies": {
-    "@medusajs/admin-sdk": "2.13.4",
-    "@medusajs/cli": "2.13.4",
-    "@medusajs/framework": "2.13.4",
-    "@medusajs/icons": "2.13.4",
-    "@medusajs/medusa": "2.13.4",
-    "@medusajs/test-utils": "2.13.4",
-    "@medusajs/types": "2.13.4",
-    "@medusajs/ui": "4.0.19"
+    "@medusajs/admin-sdk": "^2.13.0",
+    "@medusajs/framework": "^2.13.0",
+    "@medusajs/icons": "^2.13.0",
+    "@medusajs/medusa": "^2.13.0",
+    "@medusajs/types": "^2.13.0",
+    "@medusajs/ui": "^4.0.0"
   },
   "engines": {
     "node": ">=20"
