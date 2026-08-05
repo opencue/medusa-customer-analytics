@@ -1,6 +1,7 @@
 import {
   groupSessionsByVisitor,
   REPEAT_WINDOW_MS,
+  resolveRepeatWindowMs,
 } from "../lib/visitors"
 import type { SessionRow } from "../lib/dashboard"
 import type { FunnelStage } from "../lib/stages"
@@ -209,5 +210,42 @@ describe("groupSessionsByVisitor", () => {
 
     expect(groups).toHaveLength(1)
     expect(groups[0].cart_count).toBe(4)
+  })
+})
+
+describe("resolveRepeatWindowMs", () => {
+  test("falls back to the default when a shop sets nothing", () => {
+    expect(resolveRepeatWindowMs(undefined)).toBe(REPEAT_WINDOW_MS)
+    expect(resolveRepeatWindowMs("")).toBe(REPEAT_WINDOW_MS)
+  })
+
+  test("reads minutes from the shop's configuration", () => {
+    expect(resolveRepeatWindowMs("120")).toBe(120 * 60 * 1000)
+    expect(resolveRepeatWindowMs(" 90 ")).toBe(90 * 60 * 1000)
+  })
+
+  test("ignores anything that is not a positive number", () => {
+    // A typo must not turn the window into NaN, which compares false against
+    // every gap and would quietly stop merging altogether.
+    for (const bad of ["abc", "-5", "0", "NaN", "Infinity"]) {
+      expect(resolveRepeatWindowMs(bad)).toBe(REPEAT_WINDOW_MS)
+    }
+  })
+
+  test("a wider window merges carts the default would separate", () => {
+    const trace = [0, 45].map((m) =>
+      cart({
+        cart_id: `cart_${m}`,
+        items: [item("TYRE-01")],
+        created_at: at(m),
+      })
+    )
+
+    expect(groupSessionsByVisitor(trace)).toHaveLength(2)
+    expect(
+      groupSessionsByVisitor(trace, {
+        repeatWindowMs: resolveRepeatWindowMs("120"),
+      })
+    ).toHaveLength(1)
   })
 })

@@ -3,6 +3,10 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import type { Query } from "@medusajs/types"
 
 import { CHECKOUT_TRACKING_MODULE } from "../../../modules/checkout_tracking"
+import {
+  REPEAT_WINDOW_ENV,
+  resolveRepeatWindowMs,
+} from "../../../modules/checkout_tracking/lib/visitors"
 import type CheckoutTrackingModuleService from "../../../modules/checkout_tracking/service"
 import {
   buildDashboard,
@@ -132,7 +136,14 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   )
   const journeys = await service.listByCartIds(carts.map((cart) => cart.id))
 
-  const dashboard = buildDashboard({ carts, journeys })
+  const dashboard = buildDashboard({
+    carts,
+    journeys,
+    // How long after one anonymous cart an identical one still reads as the
+    // same shopper retrying. Per-shop, because the right answer depends on the
+    // catalogue rather than on this code.
+    repeatWindowMs: resolveRepeatWindowMs(process.env[REPEAT_WINDOW_ENV]),
+  })
 
   // Orders in the same window, so "never purchased" is measured over exactly
   // the period the funnel above describes. Same newest-first + JS window as the

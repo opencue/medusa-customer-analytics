@@ -40,6 +40,27 @@ import type { SessionRow } from "./dashboard"
  */
 export const REPEAT_WINDOW_MS = 15 * 60 * 1000
 
+/** Env name a shop sets to override the window, in minutes. */
+export const REPEAT_WINDOW_ENV = "CHECKOUT_TRACKING_REPEAT_WINDOW_MINUTES"
+
+/**
+ * Read the window from a shop's configuration.
+ *
+ * The right value is a property of the catalogue, not of this code: a phone
+ * accessory is re-added within a minute, a truck tyre is reconsidered an hour
+ * later. A shop that leaves it unset keeps the conservative default, and any
+ * value that is not a positive finite number is ignored rather than turning
+ * the window into NaN and silently merging everything.
+ */
+export const resolveRepeatWindowMs = (
+  rawMinutes: string | undefined
+): number => {
+  if (!rawMinutes) return REPEAT_WINDOW_MS
+  const minutes = Number(rawMinutes.trim())
+  if (!Number.isFinite(minutes) || minutes <= 0) return REPEAT_WINDOW_MS
+  return minutes * 60 * 1000
+}
+
 export type VisitorGroup = {
   /** Stable identity for the group. */
   key: string

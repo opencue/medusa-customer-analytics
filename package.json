@@ -1,6 +1,6 @@
 {
   "name": "medusa-customer-analytics",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Checkout funnel analytics for Medusa v2 — tracks how far each shopper got on the way to an order across a seven-rung funnel from cart to completed, with an admin dashboard, abandoned-cart product ranking, and win-back promotion drafts.",
   "license": "MIT",
   "keywords": [

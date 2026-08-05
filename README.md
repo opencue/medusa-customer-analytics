@@ -25,6 +25,7 @@ and is **not affiliated with, endorsed by, or maintained by Medusa** — see
 - [Why two observers](#why-two-observers)
 - [Requirements](#requirements)
 - [Install](#install)
+- [Configuration](#configuration)
 - [Connect your storefront](#connect-your-storefront)
 - [API reference](#api-reference)
 - [Scheduled job](#scheduled-job)
@@ -186,6 +187,34 @@ tracker" in the sidebar, funnel icon.
 The funnel populates from cart data immediately, with no storefront changes.
 [Wiring the beacon](#connect-your-storefront) adds the two page-only rungs plus
 device, locale, and exit-path detail.
+
+---
+
+## Configuration
+
+| Env | Default | What it does |
+|---|---|---|
+| `CHECKOUT_TRACKING_REPEAT_WINDOW_MINUTES` | `15` | How long after one anonymous cart an identical one still reads as the same shopper retrying. |
+
+Carts are grouped into visitors on two levels of evidence. A customer id, or an
+email typed into checkout, is certain and groups the carts regardless of how far
+apart they are. Two **anonymous** carts holding the same items, from the same
+device and locale, are merged only if they fall inside this window.
+
+The right value is a property of your catalogue, not of this code. A phone
+accessory is re-added within a minute; a truck tyre is reconsidered an hour
+later. Set it too wide and two different shoppers who both picked your most
+popular item fold into one "visitor"; too narrow and one shopper's retries
+inflate the abandoned count and the lost value, and divide your conversion rate
+by the duplicates.
+
+Start at the default and read the session list. If the same basket keeps
+appearing as separate rows minutes or hours apart, widen it. The row shows why
+each merge happened, so a merge you disagree with is visible rather than
+silent.
+
+Anything that is not a positive number is ignored and the default applies — a
+typo cannot switch grouping off by accident.
 
 ---
 

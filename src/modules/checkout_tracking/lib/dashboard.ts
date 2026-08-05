@@ -213,12 +213,19 @@ export type BuildDashboardInput = {
   journeys: JourneyRow[]
   /** Fallback currency when no cart in the window declares one. */
   defaultCurrency?: string
+  /**
+   * How close two anonymous carts must be to read as one shopper retrying.
+   * Shops differ: a phone accessory is re-added within a minute, a truck tyre
+   * is reconsidered an hour later. Omit to use the module default.
+   */
+  repeatWindowMs?: number
 }
 
 export const buildDashboard = ({
   carts,
   journeys,
   defaultCurrency = "eur",
+  repeatWindowMs,
 }: BuildDashboardInput): Dashboard => {
   const byCart = new Map<string, JourneyRow>()
   for (const journey of journeys) byCart.set(journey.cart_id, journey)
@@ -279,7 +286,7 @@ export const buildDashboard = ({
   // same cart three times is one abandonment worth one call-back, not three —
   // counting carts inflated the abandoned total and the lost value, and
   // divided the conversion rate by the duplicates.
-  const visitors = groupSessionsByVisitor(sessions)
+  const visitors = groupSessionsByVisitor(sessions, { repeatWindowMs })
   const abandonedVisitors = visitors.filter((v) => v.lead.stage !== "completed")
   const completedVisitors = visitors.filter((v) => v.lead.stage === "completed")
   const abandoned = abandonedVisitors.map((v) => v.lead)
