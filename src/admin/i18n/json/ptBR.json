@@ -8,6 +8,7 @@
   "loadError": "Não foi possível carregar o acompanhamento do checkout (HTTP {{status}}).",
   "loading": "Carregando carrinhos…",
   "sample": "São exibidos apenas os últimos {{limit}} carrinhos. Os carrinhos mais antigos do período não foram incluídos.",
+  "rawSample": "A análise foi interrompida após a verificação de {{limit}} carrinhos salvos. Os carrinhos mais antigos do período não foram incluídos.",
   "adds": "Adições ao carrinho bem-sucedidas",
   "distinctCarts": "Carrinhos distintos: {{value}}",
   "addsRetention": "Desde o início do acompanhamento, até {{hours}} h",

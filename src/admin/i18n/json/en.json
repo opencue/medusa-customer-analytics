@@ -8,6 +8,7 @@
   "loadError": "Could not load checkout tracking (HTTP {{status}}).",
   "loading": "Loading carts…",
   "sample": "Showing only the latest {{limit}} carts. Older carts in this period were not included.",
+  "rawSample": "Scanning stopped after {{limit}} stored carts; older carts in this period were not included.",
   "adds": "Successful adds to cart",
   "distinctCarts": "Distinct carts: {{value}}",
   "addsRetention": "Since tracking began, up to {{hours}} h",

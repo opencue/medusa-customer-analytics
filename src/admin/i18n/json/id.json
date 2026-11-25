@@ -8,6 +8,7 @@
   "loadError": "Data pelacakan checkout tidak dapat dimuat (HTTP {{status}}).",
   "loading": "Memuat keranjang…",
   "sample": "Hanya menampilkan {{limit}} keranjang terbaru. Keranjang yang lebih lama dalam periode ini tidak disertakan.",
+  "rawSample": "Pemindaian berhenti setelah memeriksa {{limit}} keranjang tersimpan. Keranjang yang lebih lama dalam periode ini tidak disertakan.",
   "adds": "Penambahan ke keranjang yang berhasil",
   "distinctCarts": "Keranjang unik: {{value}}",
   "addsRetention": "Sejak pelacakan dimulai, maksimal {{hours}} jam",

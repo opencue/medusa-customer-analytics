@@ -8,6 +8,7 @@
   "loadError": "Nepavyko įkelti pirkimo proceso stebėjimo duomenų (HTTP {{status}}).",
   "loading": "Įkeliami krepšeliai…",
   "sample": "Rodomi tik naujausi krepšeliai ({{limit}}). Senesni šio laikotarpio krepšeliai neįtraukti.",
+  "rawSample": "Nuskaitymas sustabdytas peržiūrėjus išsaugotus krepšelius ({{limit}}). Senesni šio laikotarpio krepšeliai neįtraukti.",
   "adds": "Sėkmingi įdėjimai į krepšelį",
   "distinctCarts": "Unikalūs krepšeliai: {{value}}",
   "addsRetention": "Nuo stebėjimo pradžios, daugiausia {{hours}} val. atgal",

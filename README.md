@@ -109,6 +109,9 @@ counts shoppers rather than add events; active carts are not treated as abandonm
 
 The demo includes active, abandoned, completed, and completed-after-return
 sessions, plus anonymous shoppers and carts without page-level observations.
+Select a checkout status to narrow the list, or select it again to clear it.
+Status, funnel stage, and **With email only** can be combined; the overview
+totals still describe the full date range.
 
 ---
 

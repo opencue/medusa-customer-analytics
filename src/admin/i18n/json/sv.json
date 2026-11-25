@@ -8,6 +8,7 @@
   "loadError": "Det gick inte att läsa in kassaflödets data (HTTP {{status}}).",
   "loading": "Läser in varukorgar…",
   "sample": "Endast de senaste varukorgarna visas ({{limit}}). Äldre varukorgar under perioden ingår inte.",
+  "rawSample": "Genomsökningen avbröts efter att {{limit}} sparade varukorgar hade kontrollerats. Äldre varukorgar under perioden ingår inte.",
   "adds": "Lyckade tillägg i varukorgen",
   "distinctCarts": "Unika varukorgar: {{value}}",
   "addsRetention": "Sedan spårningen började, högst {{hours}} timmar bakåt",

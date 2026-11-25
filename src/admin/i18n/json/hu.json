@@ -8,6 +8,7 @@
   "loadError": "Nem sikerült betölteni a pénztárkövetési adatokat (HTTP {{status}}).",
   "loading": "Kosarak betöltése…",
   "sample": "Csak a legutóbbi {{limit}} kosár jelenik meg. Az időszak régebbi kosarai kimaradtak.",
+  "rawSample": "A vizsgálat {{limit}} tárolt kosár ellenőrzése után leállt. Az időszak régebbi kosarai kimaradtak.",
   "adds": "Sikeres kosárba helyezések",
   "distinctCarts": "Különböző kosarak: {{value}}",
   "addsRetention": "A követés kezdete óta, legfeljebb {{hours}} órára visszamenőleg",

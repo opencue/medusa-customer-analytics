@@ -100,7 +100,14 @@ export type TrackerResponse = {
   abandoned_products: AbandonedProduct[]
   exit_paths: Array<{ path: string; count: number }>
   sale_candidates: SaleCandidate[]
-  scan: { carts: number; cap: number; capped: boolean; orders_capped: boolean }
+  scan: {
+    carts: number
+    cap: number
+    raw_cap?: number
+    limited_by?: "active_cart_cap" | "raw_cart_cap" | null
+    capped: boolean
+    orders_capped: boolean
+  }
 }
 
 export type PromotionPerformance = {

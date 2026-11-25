@@ -8,6 +8,7 @@
   "loadError": "Data o nákupním procesu se nepodařilo načíst (HTTP {{status}}).",
   "loading": "Načítání košíků…",
   "sample": "Zobrazeny jsou pouze nejnovější košíky ({{limit}}). Starší košíky z tohoto období nejsou zahrnuty.",
+  "rawSample": "Procházení záznamů se zastavilo po kontrole uložených košíků ({{limit}}). Starší košíky z tohoto období nejsou zahrnuty.",
   "adds": "Úspěšná přidání do košíku",
   "distinctCarts": "Unikátní košíky: {{value}}",
   "addsRetention": "Od zahájení sledování, nejvýše {{hours}} h zpětně",

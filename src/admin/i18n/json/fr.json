@@ -8,6 +8,7 @@
   "loadError": "Impossible de charger le suivi des commandes (HTTP {{status}}).",
   "loading": "Chargement des paniers…",
   "sample": "Seuls les {{limit}} paniers les plus récents sont affichés. Les paniers plus anciens de cette période ne sont pas inclus.",
+  "rawSample": "L’analyse s’est arrêtée après avoir parcouru {{limit}} paniers enregistrés. Les paniers plus anciens de cette période ne sont pas inclus.",
   "adds": "Ajouts au panier réussis",
   "distinctCarts": "Paniers distincts : {{value}}",
   "addsRetention": "Depuis le début du suivi, sur les {{hours}} dernières heures au maximum",
