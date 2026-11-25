@@ -13,7 +13,7 @@ const workflow = fs.readFileSync(
 );
 
 test("package metadata matches the canonical customer analytics repository", () => {
-  assert.equal(pkg.version, "0.3.0");
+  assert.equal(pkg.name, "medusa-customer-analytics");
   assert.equal(
     pkg.repository.url,
     "git+https://github.com/opencue/medusa-customer-analytics.git",
@@ -27,4 +27,10 @@ test("release workflow uses tokenless npm trusted publishing", () => {
   assert.match(workflow, /package-manager-cache:\s*false/);
   assert.match(workflow, /npm publish --access public/);
   assert.doesNotMatch(workflow, /NODE_AUTH_TOKEN|NPM_TOKEN/);
+});
+
+test("a published GitHub release triggers npm publishing for its package version", () => {
+  assert.match(workflow, /\n  release:\n    types:\s*\[published\]/);
+  assert.match(workflow, /test "\$tag" = "\$version"/);
+  assert.match(workflow, /github\.event_name == 'release' \|\| inputs\.publish == true/);
 });
