@@ -89,6 +89,7 @@ export type AbandonedProduct = {
 export type TrackerResponse = {
   range: { days: number; since: string; now: string }
   abandonment_minutes: number
+  add_to_cart: { adds: number; carts: number; retention_hours: number }
   funnel: FunnelRow[]
   totals: {
     tracked: number
@@ -123,7 +124,7 @@ export type PromotionPerformance = {
 
 /** Slovak labels + the one-line explanation of what each rung means. */
 export const STAGE_LABEL: Record<Stage, string> = {
-  cart: "Pridať do košíka",
+  cart: "Košík",
   checkout_entered: "Otvoril checkout",
   address: "Vyplnil adresu",
   delivery: "Zvolil dopravu",

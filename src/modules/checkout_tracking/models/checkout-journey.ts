@@ -40,8 +40,10 @@ const CheckoutJourney = model
     stage_at: model.json().nullable(),
     first_seen_at: model.dateTime(),
     last_seen_at: model.dateTime(),
-    /** First beacon received following an observed inactivity gap. */
+    /** Legacy beacon-only marker; insufficient to classify a recovery. */
     returned_at: model.dateTime().nullable(),
+    /** First return also checked against server-side cart activity. */
+    confirmed_returned_at: model.dateTime().nullable(),
   })
   .indexes([
     // One journey per cart. Conditional on deleted_at so a purged cart's id

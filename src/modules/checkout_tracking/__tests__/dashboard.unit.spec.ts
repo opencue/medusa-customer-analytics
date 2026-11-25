@@ -117,7 +117,7 @@ describe("buildDashboard — totals", () => {
     expect(out.abandoned_products.map((row) => row.currency)).toEqual(["eur", "huf"])
   })
 
-  it("recognizes a later completion after an observed quiet period", () => {
+  it("does not infer a return from an old beacon and a later completion", () => {
     const out = buildDashboard({
       now: new Date("2026-08-03T12:00:00Z"),
       carts: [
@@ -127,8 +127,8 @@ describe("buildDashboard — totals", () => {
       ],
       journeys: [journey({ cart_id: "recovered", last_seen_at: "2026-08-03T10:11:00Z" })],
     })
-    expect(out.totals).toMatchObject({ completed: 2, recovered: 1, abandoned: 0 })
-    expect(out.visitors.find((v) => v.lead.cart_id === "recovered")?.status).toBe("recovered")
+    expect(out.totals).toMatchObject({ completed: 2, recovered: 0, abandoned: 0 })
+    expect(out.visitors.find((v) => v.lead.cart_id === "recovered")?.status).toBe("completed")
   })
 
   it("recognizes a quiet period even if the shopper is active again before paying", () => {
@@ -142,7 +142,7 @@ describe("buildDashboard — totals", () => {
       journeys: [journey({
         cart_id: "returned",
         last_seen_at: "2026-08-03T12:00:00Z",
-        returned_at: "2026-08-03T11:50:00Z",
+        confirmed_returned_at: "2026-08-03T11:50:00Z",
       })],
     })
     expect(out.visitors[0].status).toBe("recovered")

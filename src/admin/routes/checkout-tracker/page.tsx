@@ -175,8 +175,6 @@ const CheckoutTrackerPage = () => {
         : 0,
     [data]
   )
-  const addToCart = data?.funnel.find((row) => row.stage === "cart")
-  const startedCheckout = data?.funnel.find((row) => row.stage === "checkout_entered")
 
   if (isError) {
     return (
@@ -228,10 +226,10 @@ const CheckoutTrackerPage = () => {
             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 190px), 1fr))", gap: 1, background: "var(--border-base)" }}
           >
             <KpiCard
-              label="Pridať do košíka"
-              value={formatCount(addToCart?.reached ?? 0)}
-              detail="Prvý krok"
-              hint={`${formatCount(startedCheckout?.reached ?? 0)} pokračovalo k checkoutu · zlučujeme duplicitné košíky, nie kliknutia`}
+              label="Úspešné pridania do košíka"
+              value={formatCount(data.add_to_cart.adds)}
+              detail={`${formatCount(data.add_to_cart.carts)} rôznych košíkov`}
+              hint={`Od zapnutia merania, najviac za ${data.add_to_cart.retention_hours} h`}
             />
             <KpiCard
               label="Dokončené checkouty"
