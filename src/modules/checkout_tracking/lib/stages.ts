@@ -88,7 +88,7 @@ export type CartLike = {
   } | null
 }
 
-const hasRows = (value: Array<unknown> | null | undefined): boolean =>
+export const hasRows = (value: Array<unknown> | null | undefined): boolean =>
   Array.isArray(value) && value.length > 0
 
 /**

@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Funnel as FunnelIcon } from "@medusajs/icons"
 import { useQuery } from "@tanstack/react-query"
-import { Heading, Text } from "@medusajs/ui"
+import { Badge, Button, Heading, Text } from "@medusajs/ui"
 
 import { withRouteBoundary } from "../../lib/widget-boundary"
 import { Funnel } from "./funnel"
@@ -37,8 +37,7 @@ const RANGE_LABEL: Record<RangeDays, string> = {
   90: "90 dní",
 }
 
-const GREEN = "#3dd68c"
-const ORANGE = "#ff5b2e"
+const formatCount = new Intl.NumberFormat("sk-SK").format
 
 const fetchTracker = async (days: number): Promise<TrackerResponse> => {
   const response = await fetch(
@@ -65,44 +64,42 @@ const Card = ({
   action?: ReactNode
   children: ReactNode
 }) => (
-  <div className="rounded-xl border border-ui-border-base bg-ui-bg-base p-5">
-    <div className="flex items-start justify-between gap-x-3">
+  <section className="min-w-0 rounded-lg border border-ui-border-base bg-ui-bg-base p-5">
+    <div className="flex flex-wrap items-start justify-between gap-2">
       <div className="min-w-0">
-        <div className="text-[13.5px] font-semibold text-ui-fg-base">
-          {title}
-        </div>
-        <div className="mt-0.5 text-[11.5px] text-ui-fg-muted">{sub}</div>
+        <Heading level="h2" className="text-ui-fg-base" style={{ fontSize: 16 }}>{title}</Heading>
+        <Text size="small" className="text-ui-fg-subtle">{sub}</Text>
       </div>
       {action}
     </div>
     {children}
-  </div>
+  </section>
 )
 
 const KpiCard = ({
   label,
   value,
   hint,
-  tone,
+  detail,
 }: {
   label: string
   value: string
   hint?: string
-  tone?: "good" | "bad"
+  detail?: string
 }) => (
-  <div className="rounded-xl border border-ui-border-base bg-ui-bg-base p-4">
-    <div className="text-[11.5px] text-ui-fg-muted">{label}</div>
+  <div className="min-w-0 bg-ui-bg-base p-4">
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <Text size="small" weight="plus" className="text-ui-fg-subtle">{label}</Text>
+      {detail ? <Badge size="2xsmall" color="grey">{detail}</Badge> : null}
+    </div>
     <div
-      className="mt-1 text-[22px] font-semibold leading-tight tabular-nums"
-      style={{
-        color:
-          tone === "good" ? GREEN : tone === "bad" ? ORANGE : undefined,
-      }}
+      className="mt-2 font-medium tabular-nums tracking-tight text-ui-fg-base"
+      style={{ fontSize: 30, lineHeight: 1.2 }}
     >
-      <span className={tone ? undefined : "text-ui-fg-base"}>{value}</span>
+      {value}
     </div>
     {hint ? (
-      <div className="mt-1 text-[11px] text-ui-fg-subtle">{hint}</div>
+      <Text size="small" className="mt-2 text-ui-fg-subtle">{hint}</Text>
     ) : null}
   </div>
 )
@@ -114,36 +111,27 @@ const RangeToggle = ({
   value: RangeDays
   onChange: (days: RangeDays) => void
 }) => (
-  <div className="inline-flex rounded-lg border border-ui-border-base bg-ui-bg-subtle p-0.5">
+  <div role="group" aria-label="Obdobie" className="inline-flex flex-wrap gap-1 rounded-lg border border-ui-border-base bg-ui-bg-subtle p-1">
     {RANGES.map((days) => {
       const active = days === value
       return (
-        <button
+        <Button
           key={days}
           type="button"
+          size="small"
+          variant={active ? "secondary" : "transparent"}
+          aria-pressed={active}
           onClick={() => onChange(days)}
-          className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-            active
-              ? "bg-ui-bg-base text-ui-fg-base shadow-sm"
-              : "text-ui-fg-subtle hover:text-ui-fg-base"
-          }`}
         >
           {RANGE_LABEL[days]}
-        </button>
+        </Button>
       )
     })}
   </div>
 )
 
 const Notice = ({ children }: { children: ReactNode }) => (
-  <div
-    className="rounded-lg border px-3.5 py-2.5 text-[11.5px]"
-    style={{
-      borderColor: "rgba(255,91,46,0.35)",
-      background: "rgba(255,91,46,0.08)",
-      color: ORANGE,
-    }}
-  >
+  <div role="status" className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-3 text-sm text-ui-fg-subtle">
     {children}
   </div>
 )
@@ -187,6 +175,8 @@ const CheckoutTrackerPage = () => {
         : 0,
     [data]
   )
+  const addToCart = data?.funnel.find((row) => row.stage === "cart")
+  const startedCheckout = data?.funnel.find((row) => row.stage === "checkout_entered")
 
   if (isError) {
     return (
@@ -200,19 +190,20 @@ const CheckoutTrackerPage = () => {
   }
 
   return (
-    <div className="flex flex-col gap-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-x-2">
-          <FunnelIcon className="text-ui-fg-subtle" />
-          <div>
-            <Heading level="h1">Checkout tracker</Heading>
-            <Text size="xsmall" className="text-ui-fg-muted">
-              Kde zákazníci prestali — od pridania do košíka po objednávku
-            </Text>
+    <div className="flex min-w-0 flex-col gap-y-4" style={{ width: "100%", maxWidth: 1280, marginInline: "auto" }}>
+      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-ui-border-base pb-4">
+        <div>
+          <div className="mb-2 inline-flex items-center gap-2 text-ui-fg-subtle">
+            <FunnelIcon aria-hidden="true" />
+            <Text size="small" weight="plus">Analytika</Text>
           </div>
+          <Heading level="h1" style={{ fontSize: 28, lineHeight: 1.2, letterSpacing: "-0.025em" }}>Checkout tracker</Heading>
+          <Text size="small" className="mt-1 text-ui-fg-subtle">
+            Od pridania do košíka po dokončenú objednávku.
+          </Text>
         </div>
         <RangeToggle value={days} onChange={setDays} />
-      </div>
+      </header>
 
       {isLoading ? (
         <Text size="small" className="text-ui-fg-subtle">
@@ -230,57 +221,48 @@ const CheckoutTrackerPage = () => {
             </Notice>
           ) : null}
 
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div
+            aria-label="Prehľad checkoutu"
+            role="group"
+            className="grid overflow-hidden rounded-lg border border-ui-border-base bg-ui-bg-subtle"
+            style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 190px), 1fr))", gap: 1, background: "var(--border-base)" }}
+          >
             <KpiCard
-              label={`Košíky · ${RANGE_LABEL[days]}`}
-              value={String(data.totals.tracked)}
-              hint={`${data.totals.with_storefront_data} so stránkovými dátami`}
+              label="Pridať do košíka"
+              value={formatCount(addToCart?.reached ?? 0)}
+              detail="Prvý krok"
+              hint={`${formatCount(startedCheckout?.reached ?? 0)} pokračovalo k checkoutu · zlučujeme duplicitné košíky, nie kliknutia`}
             />
             <KpiCard
               label="Dokončené checkouty"
-              value={String(data.totals.completed)}
+              value={formatCount(data.totals.completed)}
               hint={`Konverzia ${formatPercent(data.totals.conversion_rate)} · ${data.totals.recovered} po návrate`}
-              tone="good"
             />
             <KpiCard
               label="Opustené košíky"
-              value={String(data.totals.abandoned)}
+              value={formatCount(data.totals.abandoned)}
               hint={`${contactable} má e-mail — dajú sa osloviť`}
-              tone="bad"
             />
             <KpiCard
               label="Rozpracované košíky"
-              value={String(data.totals.active)}
+              value={formatCount(data.totals.active)}
               hint={`Opustené po ${data.abandonment_minutes} min bez zaznamenanej aktivity`}
             />
           </div>
 
-          {data.totals.by_currency.length ? (
-            <Card title="Hodnota košíkov podľa meny" sub="Hodnota košíkov, nie vykázaná tržba">
-              <ul className="mt-2 space-y-1 text-xs">
-                {data.totals.by_currency.map((row) => (
-                  <li key={row.currency}>
-                    <strong>{row.currency.toUpperCase()}</strong> · Opustené:{" "}
-                    {formatMoney(row.lost_value, row.currency)} · Dokončené:{" "}
-                    {formatMoney(row.converted_value, row.currency)}
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          ) : null}
-
           <Card
             title="Lievik checkoutu"
-            sub="Kliknutím vyfiltrujete zákazníkov podľa posledného dosiahnutého kroku"
+            sub={`Podiel od prvého kroku · ${formatCount(data.totals.with_storefront_data)} z ${formatCount(data.totals.tracked)} má údaje z e-shopu. Kliknutím vyfiltrujete posledný krok.`}
             action={
               stageFilter ? (
-                <button
+                <Button
                   type="button"
+                  size="small"
+                  variant="secondary"
                   onClick={() => setStageFilter(null)}
-                  className="shrink-0 rounded-md border border-ui-border-base px-2 py-1 text-[11px] text-ui-fg-subtle transition-colors hover:text-ui-fg-base"
                 >
                   Zrušiť filter
-                </button>
+                </Button>
               ) : undefined
             }
           >
@@ -290,6 +272,20 @@ const CheckoutTrackerPage = () => {
               onSelect={setStageFilter}
             />
           </Card>
+
+          {data.totals.by_currency.length ? (
+            <Card title="Hodnota košíkov podľa meny" sub="Hodnota košíkov, nie vykázaná tržba">
+              <ul className="mt-3 divide-y divide-ui-border-base">
+                {data.totals.by_currency.map((row) => (
+                  <li key={row.currency} className="flex flex-wrap items-center gap-3 py-2">
+                    <Badge size="small" color="grey">{row.currency.toUpperCase()}</Badge>
+                    <Text size="small" className="tabular-nums">Opustené: {formatMoney(row.lost_value, row.currency)}</Text>
+                    <Text size="small" className="tabular-nums">Dokončené: {formatMoney(row.converted_value, row.currency)}</Text>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ) : null}
 
           <Card
             title="Čo preveriť pri opustených košíkoch"

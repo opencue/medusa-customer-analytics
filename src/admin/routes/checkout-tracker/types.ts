@@ -123,7 +123,7 @@ export type PromotionPerformance = {
 
 /** Slovak labels + the one-line explanation of what each rung means. */
 export const STAGE_LABEL: Record<Stage, string> = {
-  cart: "Pridal do košíka",
+  cart: "Pridať do košíka",
   checkout_entered: "Otvoril checkout",
   address: "Vyplnil adresu",
   delivery: "Zvolil dopravu",
@@ -133,7 +133,7 @@ export const STAGE_LABEL: Record<Stage, string> = {
 }
 
 export const STAGE_HINT: Record<Stage, string> = {
-  cart: "Košík má aspoň jednu položku",
+  cart: "Košík s položkou alebo preukázaný ďalší krok",
   checkout_entered: "Otvoril stránku /checkout",
   address: "Uložená dodacia adresa",
   delivery: "Vybraný spôsob dopravy",

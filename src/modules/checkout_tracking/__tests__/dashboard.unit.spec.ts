@@ -82,6 +82,18 @@ describe("buildDashboard — merging the two observers", () => {
     expect(out.sessions.map((s) => s.cart_id)).toEqual(["cart_2"])
     expect(out.totals.tracked).toBe(1)
   })
+
+  it("does not count an empty cart's exit beacon as an add-to-cart", () => {
+    const out = buildDashboard({
+      carts: [cart({ id: "empty", items: [] }), cart({ id: "emptied_after_review", items: [] })],
+      journeys: [
+        journey({ cart_id: "empty", stage: "cart" }),
+        journey({ cart_id: "emptied_after_review", stage: "review" }),
+      ],
+    })
+    expect(out.sessions.map((s) => s.cart_id)).toEqual(["emptied_after_review"])
+    expect(out.funnel[0]).toMatchObject({ stage: "cart", reached: 1 })
+  })
 })
 
 describe("buildDashboard — totals", () => {

@@ -9,6 +9,7 @@
 import {
   buildFunnel,
   deriveServerStage,
+  hasRows,
   maxStage,
   stageIndex,
   type CartLike,
@@ -307,7 +308,10 @@ export const buildDashboard = ({
   for (const cart of carts) {
     const serverStage = deriveServerStage(cart)
     const journey = byCart.get(cart.id)
-    const clientStage = (journey?.stage ?? null) as FunnelStage | null
+    const observedStage = (journey?.stage ?? null) as FunnelStage | null
+    // A storefront can create a cart ID before adding anything. Its exit beacon
+    // alone doesn't prove this rung; deeper page observations are still useful.
+    const clientStage = observedStage === "cart" && !hasRows(cart.items) ? null : observedStage
     const stage = maxStage(serverStage, clientStage)
 
     // No stage at all means an empty cart that was never filled — there is no
