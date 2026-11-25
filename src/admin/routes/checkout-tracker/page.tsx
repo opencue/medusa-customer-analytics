@@ -9,6 +9,7 @@ import { useCheckoutTranslation } from "../../lib/checkout-i18n"
 import { Funnel } from "./funnel"
 import { AbandonedProducts, ExitPaths } from "./side-cards"
 import { SaleRecommendations } from "./sale-recommendations"
+import { matchesSessionFilters } from "./session-filters"
 import { SessionTable } from "./session-table"
 import { WinBack } from "./win-back"
 import { formatCount, formatMoney, formatPercent } from "./format"
@@ -155,12 +156,9 @@ const CheckoutTrackerPage = () => {
   // and the row the operator sees.
   const visitors = useMemo(() => {
     if (!data) return []
-    return data.visitors.filter(({ lead, status }) => {
-      if (stageFilter && lead.stage !== stageFilter) return false
-      if (statusFilter && status !== statusFilter) return false
-      if (onlyContactable && !lead.email) return false
-      return true
-    })
+    return data.visitors.filter((visitor) =>
+      matchesSessionFilters(visitor, stageFilter, statusFilter, onlyContactable)
+    )
   }, [data, stageFilter, statusFilter, onlyContactable])
 
   const contactable = useMemo(
@@ -326,7 +324,11 @@ const CheckoutTrackerPage = () => {
               <span aria-live="polite">
                 {stageFilter
                   ? t("lastStage", { stage: t(`stage.${stageFilter}`), value: count(visitors.length) })
-                  : t("allSessions", { value: count(visitors.length) })}
+                  : statusFilter || onlyContactable
+                    ? count(visitors.length)
+                    : t("allSessions", { value: count(visitors.length) })}
+                {statusFilter ? ` · ${t(`status.${statusFilter}`)}` : null}
+                {onlyContactable ? ` · ${t("emailOnly")}` : null}
               </span>
             }
             action={
