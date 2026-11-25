@@ -2,7 +2,8 @@ import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Button, Input, Text } from "@medusajs/ui"
 
-import { formatMoney } from "./format"
+import { useCheckoutTranslation } from "../../lib/checkout-i18n"
+import { formatCount, formatMoney } from "./format"
 import type { PromotionPerformance } from "./types"
 
 const fetchPerformance = async (code: string, days: number): Promise<PromotionPerformance> => {
@@ -21,6 +22,7 @@ export const WinBack = ({
   code: string
   onCodeChange: (code: string) => void
 }) => {
+  const { t, locale } = useCheckoutTranslation()
   const [input, setInput] = useState(code)
   useEffect(() => setInput(code), [code])
   const { data, isFetching, isError, refetch } = useQuery({
@@ -42,38 +44,39 @@ export const WinBack = ({
         }}
       >
         <label className="flex flex-col gap-1 text-xs">
-          Kód akcie
-          <Input value={input} onChange={(event) => setInput(event.target.value)} maxLength={40} required />
+          {t("promoCode")}
+          <Input value={input} onChange={(event) => setInput(event.target.value)} maxLength={40} dir="auto" required />
         </label>
         <Button type="submit" size="small" disabled={!input.trim()}>
-          Zobraziť výsledky
+          {t("showResults")}
         </Button>
       </form>
 
-      {isFetching ? <Text role="status" size="xsmall">Načítavam výsledky…</Text> : null}
-      {isError ? <Text role="alert" size="xsmall">Výsledky sa nepodarilo načítať.</Text> : null}
+      {isFetching ? <Text role="status" size="xsmall">{t("loadingResults")}</Text> : null}
+      {isError ? <Text role="alert" size="xsmall">{t("resultsError")}</Text> : null}
       {data && !isError ? (
         <div aria-live="polite">
           {data.scan.capped ? (
             <Text role="status" size="xsmall">
-              Len vzorka: staršie objednávky presiahli limit {data.scan.cap}. Skúste kratšie obdobie.
+              {t("orderSample", { limit: formatCount(data.scan.cap, locale) })}
             </Text>
           ) : null}
-          <Text size="small"><strong>{data.code}</strong> · {data.orders} objednávok s kódom</Text>
+          <Text size="small"><strong><bdi>{data.code}</bdi></strong> · {t("ordersWithCode", { value: formatCount(data.orders, locale) })}</Text>
           <ul className="mt-1 space-y-1 text-xs">
             {data.by_currency.map((row) => (
               <li key={row.currency}>
-                <strong>{row.currency.toUpperCase()}</strong> · {row.orders} obj. · Zľava kódu:{" "}
-                {formatMoney(row.discount_value, row.currency)} · Hodnota bez DPH:{" "}
-                {row.order_value_ex_tax === null ? "nedostupná" : formatMoney(row.order_value_ex_tax, row.currency)}
+                <strong><bdi>{row.currency.toUpperCase()}</bdi></strong> · {t("orders", { value: formatCount(row.orders, locale) })} ·{" "}
+                {t("codeDiscount", { amount: formatMoney(row.discount_value, row.currency, locale) })} ·{" "}
+                {t("netValue", {
+                  amount: row.order_value_ex_tax === null ? t("unavailable") : formatMoney(row.order_value_ex_tax, row.currency, locale),
+                })}
               </li>
             ))}
           </ul>
         </div>
       ) : null}
       <Text size="xsmall" className="text-ui-fg-muted">
-        Hodnota objednávok po zľavách, bez DPH a pred refundáciami. Použitie kódu samo nepreukazuje
-        dodatočný predaj.
+        {t("winBackFootnote")}
       </Text>
     </div>
   )

@@ -5,9 +5,12 @@ const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
-export const formatMoney = (value: number, currency: string): string => {
+export const formatCount = (value: number, locale: string): string =>
+  new Intl.NumberFormat(locale).format(value)
+
+export const formatMoney = (value: number, currency: string, locale: string): string => {
   try {
-    return new Intl.NumberFormat("sk-SK", {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: currency.toUpperCase(),
     }).format(value)
@@ -17,32 +20,36 @@ export const formatMoney = (value: number, currency: string): string => {
   }
 }
 
-export const formatPercent = (ratio: number, digits = 1): string =>
-  `${(ratio * 100).toFixed(digits).replace(".", ",")} %`
+export const formatPercent = (ratio: number, locale: string, digits = 1): string =>
+  new Intl.NumberFormat(locale, {
+    style: "percent",
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(ratio)
 
 /**
- * Slovak relative time, coarse on purpose. The operator is deciding whether an
- * abandoned cart is still worth a call-back, so "pred 20 min" and "pred 3 h"
+ * Relative time, coarse on purpose. The operator is deciding whether an
+ * abandoned cart is still worth a call-back, so "20 min ago" and "3 hr ago"
  * are the distinctions that matter — exact seconds are noise.
  */
-export const formatAgo = (iso: string | null, now: number): string => {
+export const formatAgo = (iso: string | null, now: number, locale: string): string => {
   if (!iso) return "—"
   const then = new Date(iso).getTime()
   if (Number.isNaN(then)) return "—"
 
   const diff = Math.max(0, now - then)
-  if (diff < MINUTE) return "teraz"
-  if (diff < HOUR) return `pred ${Math.floor(diff / MINUTE)} min`
-  if (diff < DAY) return `pred ${Math.floor(diff / HOUR)} h`
-  const days = Math.floor(diff / DAY)
-  return days === 1 ? "včera" : `pred ${days} dňami`
+  const relative = new Intl.RelativeTimeFormat(locale, { numeric: "auto", style: "short" })
+  if (diff < MINUTE) return relative.format(0, "second")
+  if (diff < HOUR) return relative.format(-Math.floor(diff / MINUTE), "minute")
+  if (diff < DAY) return relative.format(-Math.floor(diff / HOUR), "hour")
+  return relative.format(-Math.floor(diff / DAY), "day")
 }
 
-export const formatDateTime = (iso: string | null): string => {
+export const formatDateTime = (iso: string | null, locale: string): string => {
   if (!iso) return "—"
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return "—"
-  return new Intl.DateTimeFormat("sk-SK", {
+  return new Intl.DateTimeFormat(locale, {
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",
@@ -53,9 +60,3 @@ export const formatDateTime = (iso: string | null): string => {
 /** "cart_01JX…9QF" — enough to match against a Medusa cart without the noise. */
 export const shortId = (id: string): string =>
   id.length <= 16 ? id : `${id.slice(0, 9)}…${id.slice(-4)}`
-
-export const DEVICE_LABEL: Record<string, string> = {
-  mobile: "Mobil",
-  tablet: "Tablet",
-  desktop: "Desktop",
-}

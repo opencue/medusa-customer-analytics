@@ -5,13 +5,14 @@ import { useQuery } from "@tanstack/react-query"
 import { Badge, Button, Heading, Text } from "@medusajs/ui"
 
 import { withRouteBoundary } from "../../lib/widget-boundary"
+import { useCheckoutTranslation } from "../../lib/checkout-i18n"
 import { Funnel } from "./funnel"
 import { AbandonedProducts, ExitPaths } from "./side-cards"
 import { SaleRecommendations } from "./sale-recommendations"
 import { SessionTable } from "./session-table"
 import { WinBack } from "./win-back"
-import { formatMoney, formatPercent } from "./format"
-import { STAGE_LABEL, type Stage, type TrackerResponse } from "./types"
+import { formatCount, formatMoney, formatPercent } from "./format"
+import type { Stage, TrackerResponse } from "./types"
 
 /**
  * Checkout tracker — where shoppers give up between "added to cart" and
@@ -23,21 +24,12 @@ import { STAGE_LABEL, type Stage, type TrackerResponse } from "./types"
  *     visitors who granted analytics consent.
  *
  * That split is surfaced in the UI rather than hidden: page-level columns read
- * "bez súhlasu" instead of showing a blank, so nobody reads a gap in the data
+ * "No page data" instead of showing a blank, so nobody reads a gap in the data
  * as a shopper who did nothing.
  */
 
 const RANGES = [7, 14, 30, 90] as const
 type RangeDays = (typeof RANGES)[number]
-
-const RANGE_LABEL: Record<RangeDays, string> = {
-  7: "7 dní",
-  14: "14 dní",
-  30: "30 dní",
-  90: "90 dní",
-}
-
-const formatCount = new Intl.NumberFormat("sk-SK").format
 
 const fetchTracker = async (days: number): Promise<TrackerResponse> => {
   const response = await fetch(
@@ -45,10 +37,7 @@ const fetchTracker = async (days: number): Promise<TrackerResponse> => {
     { credentials: "include" }
   )
   if (!response.ok) {
-    const body = await response.text().catch(() => "")
-    throw new Error(
-      `Nepodarilo sa načítať tracker (HTTP ${response.status}): ${body.slice(0, 200)}`
-    )
+    throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status })
   }
   return (await response.json()) as TrackerResponse
 }
@@ -110,25 +99,28 @@ const RangeToggle = ({
 }: {
   value: RangeDays
   onChange: (days: RangeDays) => void
-}) => (
-  <div role="group" aria-label="Obdobie" className="inline-flex flex-wrap gap-1 rounded-lg border border-ui-border-base bg-ui-bg-subtle p-1">
-    {RANGES.map((days) => {
-      const active = days === value
-      return (
-        <Button
-          key={days}
-          type="button"
-          size="small"
-          variant={active ? "secondary" : "transparent"}
-          aria-pressed={active}
-          onClick={() => onChange(days)}
-        >
-          {RANGE_LABEL[days]}
-        </Button>
-      )
-    })}
-  </div>
-)
+}) => {
+  const { t, locale } = useCheckoutTranslation()
+  return (
+    <div role="group" aria-label={t("range")} className="inline-flex flex-wrap gap-1 rounded-lg border border-ui-border-base bg-ui-bg-subtle p-1">
+      {RANGES.map((days) => {
+        const active = days === value
+        return (
+          <Button
+            key={days}
+            type="button"
+            size="small"
+            variant={active ? "secondary" : "transparent"}
+            aria-pressed={active}
+            onClick={() => onChange(days)}
+          >
+            {t("days", { value: formatCount(days, locale) })}
+          </Button>
+        )
+      })}
+    </div>
+  )
+}
 
 const Notice = ({ children }: { children: ReactNode }) => (
   <div role="status" className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-3 text-sm text-ui-fg-subtle">
@@ -137,6 +129,8 @@ const Notice = ({ children }: { children: ReactNode }) => (
 )
 
 const CheckoutTrackerPage = () => {
+  const { t, locale } = useCheckoutTranslation()
+  const count = (value: number) => formatCount(value, locale)
   const [days, setDays] = useState<RangeDays>(7)
   const [stageFilter, setStageFilter] = useState<Stage | null>(null)
   const [onlyContactable, setOnlyContactable] = useState(false)
@@ -179,9 +173,11 @@ const CheckoutTrackerPage = () => {
   if (isError) {
     return (
       <div className="flex flex-col gap-y-3">
-        <Heading level="h1">Checkout tracker</Heading>
+        <Heading level="h1">{t("title")}</Heading>
         <Notice>
-          {error instanceof Error ? error.message : "Načítanie zlyhalo."}
+          {error && "status" in error
+            ? t("loadError", { status: error.status })
+            : t("resultsError")}
         </Notice>
       </div>
     )
@@ -193,11 +189,11 @@ const CheckoutTrackerPage = () => {
         <div>
           <div className="mb-2 inline-flex items-center gap-2 text-ui-fg-subtle">
             <FunnelIcon aria-hidden="true" />
-            <Text size="small" weight="plus">Analytika</Text>
+            <Text size="small" weight="plus">{t("analytics")}</Text>
           </div>
-          <Heading level="h1" style={{ fontSize: 28, lineHeight: 1.2, letterSpacing: "-0.025em" }}>Checkout tracker</Heading>
+          <Heading level="h1" style={{ fontSize: 28, lineHeight: 1.2, letterSpacing: "-0.025em" }}>{t("title")}</Heading>
           <Text size="small" className="mt-1 text-ui-fg-subtle">
-            Od pridania do košíka po dokončenú objednávku.
+            {t("subtitle")}
           </Text>
         </div>
         <RangeToggle value={days} onChange={setDays} />
@@ -205,7 +201,7 @@ const CheckoutTrackerPage = () => {
 
       {isLoading ? (
         <Text size="small" className="text-ui-fg-subtle">
-          Načítavam košíky…
+          {t("loading")}
         </Text>
       ) : null}
 
@@ -213,44 +209,48 @@ const CheckoutTrackerPage = () => {
         <>
           {data.scan.capped ? (
             <Notice>
-              Zobrazených je najnovších {data.scan.cap} košíkov — staršia časť
-              obdobia sa do výpočtu nedostala. Čísla sú vzorka, nie celé
-              obdobie.
+              {t("sample", { limit: count(data.scan.cap) })}
             </Notice>
           ) : null}
 
           <div
-            aria-label="Prehľad checkoutu"
+            aria-label={t("overview")}
             role="group"
             className="grid overflow-hidden rounded-lg border border-ui-border-base bg-ui-bg-subtle"
             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 190px), 1fr))", gap: 1, background: "var(--border-base)" }}
           >
             <KpiCard
-              label="Úspešné pridania do košíka"
-              value={formatCount(data.add_to_cart.adds)}
-              detail={`${formatCount(data.add_to_cart.carts)} rôznych košíkov`}
-              hint={`Od zapnutia merania, najviac za ${data.add_to_cart.retention_hours} h`}
+              label={t("adds")}
+              value={count(data.add_to_cart.adds)}
+              detail={t("distinctCarts", { value: count(data.add_to_cart.carts) })}
+              hint={t("addsRetention", { hours: count(data.add_to_cart.retention_hours) })}
             />
             <KpiCard
-              label="Dokončené checkouty"
-              value={formatCount(data.totals.completed)}
-              hint={`Konverzia ${formatPercent(data.totals.conversion_rate)} · ${data.totals.recovered} po návrate`}
+              label={t("completed")}
+              value={count(data.totals.completed)}
+              hint={t("conversion", {
+                rate: formatPercent(data.totals.conversion_rate, locale),
+                recovered: count(data.totals.recovered),
+              })}
             />
             <KpiCard
-              label="Opustené košíky"
-              value={formatCount(data.totals.abandoned)}
-              hint={`${contactable} má e-mail — dajú sa osloviť`}
+              label={t("abandoned")}
+              value={count(data.totals.abandoned)}
+              hint={t("contactable", { value: count(contactable) })}
             />
             <KpiCard
-              label="Rozpracované košíky"
-              value={formatCount(data.totals.active)}
-              hint={`Opustené po ${data.abandonment_minutes} min bez zaznamenanej aktivity`}
+              label={t("inProgress")}
+              value={count(data.totals.active)}
+              hint={t("inactivity", { minutes: count(data.abandonment_minutes) })}
             />
           </div>
 
           <Card
-            title="Lievik checkoutu"
-            sub={`Podiel od prvého kroku · ${formatCount(data.totals.with_storefront_data)} z ${formatCount(data.totals.tracked)} má údaje z e-shopu. Kliknutím vyfiltrujete posledný krok.`}
+            title={t("funnel")}
+            sub={t("funnelHint", {
+              observed: count(data.totals.with_storefront_data),
+              total: count(data.totals.tracked),
+            })}
             action={
               stageFilter ? (
                 <Button
@@ -259,7 +259,7 @@ const CheckoutTrackerPage = () => {
                   variant="secondary"
                   onClick={() => setStageFilter(null)}
                 >
-                  Zrušiť filter
+                  {t("clearFilter")}
                 </Button>
               ) : undefined
             }
@@ -272,13 +272,13 @@ const CheckoutTrackerPage = () => {
           </Card>
 
           {data.totals.by_currency.length ? (
-            <Card title="Hodnota košíkov podľa meny" sub="Hodnota košíkov, nie vykázaná tržba">
+            <Card title={t("values")} sub={t("valuesHint")}>
               <ul className="mt-3 divide-y divide-ui-border-base">
                 {data.totals.by_currency.map((row) => (
                   <li key={row.currency} className="flex flex-wrap items-center gap-3 py-2">
                     <Badge size="small" color="grey">{row.currency.toUpperCase()}</Badge>
-                    <Text size="small" className="tabular-nums">Opustené: {formatMoney(row.lost_value, row.currency)}</Text>
-                    <Text size="small" className="tabular-nums">Dokončené: {formatMoney(row.converted_value, row.currency)}</Text>
+                    <Text size="small" className="tabular-nums">{t("lostValue", { amount: formatMoney(row.lost_value, row.currency, locale) })}</Text>
+                    <Text size="small" className="tabular-nums">{t("convertedValue", { amount: formatMoney(row.converted_value, row.currency, locale) })}</Text>
                   </li>
                 ))}
               </ul>
@@ -286,41 +286,41 @@ const CheckoutTrackerPage = () => {
           ) : null}
 
           <Card
-            title="Čo preveriť pri opustených košíkoch"
-            sub="Najviac pridávané do košíka a ani raz nepredané za zvolené obdobie"
+            title={t("recommendations")}
+            sub={t("recommendationsHint")}
           >
             {data.scan.capped || data.scan.orders_capped ? (
-              <Notice>Neúplné údaje. Pre odporúčania vyberte kratšie obdobie.</Notice>
+              <Notice>{t("incomplete")}</Notice>
             ) : (
               <SaleRecommendations key={days} rows={data.sale_candidates} onCreated={setPromotionCode} />
             )}
           </Card>
 
-          <Card title="Výsledky win-back akcií" sub="Objednávky a zľavy podľa kódu vo zvolenom období">
+          <Card title={t("winBack")} sub={t("winBackHint")}>
             <WinBack days={days} code={promotionCode} onCodeChange={setPromotionCode} />
           </Card>
 
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <Card
-              title="Odkiaľ odišli"
-              sub="Posledná stránka pred odchodom · len opustené košíky"
+              title={t("exitPages")}
+              sub={t("exitPagesHint")}
             >
               <ExitPaths rows={data.exit_paths} />
             </Card>
             <Card
-              title="Najčastejšie opustené produkty"
-              sub="Zoradené podľa počtu košíkov, v ktorých uviazli"
+              title={t("topProducts")}
+              sub={t("topProductsHint")}
             >
               <AbandonedProducts rows={data.abandoned_products} />
             </Card>
           </div>
 
           <Card
-            title="Zákazníci"
+            title={t("sessions")}
             sub={
               stageFilter
-                ? `Posledný krok „${STAGE_LABEL[stageFilter]}“ · ${visitors.length}`
-                : `Všetky sledované košíky · ${visitors.length}`
+                ? t("lastStage", { stage: t(`stage.${stageFilter}`), value: count(visitors.length) })
+                : t("allSessions", { value: count(visitors.length) })
             }
             action={
               <button
@@ -333,7 +333,7 @@ const CheckoutTrackerPage = () => {
                     : "border-ui-border-base text-ui-fg-subtle hover:text-ui-fg-base"
                 }`}
               >
-                Len s e-mailom
+                {t("emailOnly")}
               </button>
             }
           >
@@ -341,11 +341,7 @@ const CheckoutTrackerPage = () => {
           </Card>
 
           <Text size="xsmall" className="text-ui-fg-muted">
-            Kroky adresa / doprava / platba / objednané sa odvodzujú z košíka,
-            takže platia pre každého zákazníka. Stránkové údaje (otvorenie
-            checkoutu, súhrn, zariadenie, posledná stránka) zbiera storefront
-            len so súhlasom s analytickými cookies a mažú sa 72 hodín po
-            poslednej návšteve.
+            {t("consent")}
           </Text>
         </>
       ) : null}
@@ -354,7 +350,9 @@ const CheckoutTrackerPage = () => {
 }
 
 export const config = defineRouteConfig({
-  label: "Checkout tracker",
+  label: "title",
+  // Medusa extracts route config statically; this must be a string literal.
+  translationNs: "checkout-analytics",
   icon: FunnelIcon,
 })
 

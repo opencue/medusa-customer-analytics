@@ -1,5 +1,7 @@
-import { Component, type ReactNode } from "react"
+import { Component, Suspense, type ReactNode } from "react"
+import en from "../i18n/json/en.json"
 import { AdminQueryProvider } from "./admin-query-client"
+import { useCheckoutTranslation } from "./checkout-i18n"
 
 type Props = {
   /** Human label shown in the fallback so the operator knows which widget broke. */
@@ -8,6 +10,28 @@ type Props = {
 }
 
 type State = { error: Error | null }
+
+const staticNotice = <div className="mt-1 text-xs text-ui-fg-subtle">{en.widgetError}</div>
+
+const ErrorNotice = () => {
+  const { t } = useCheckoutTranslation()
+  return <div className="mt-1 text-xs text-ui-fg-subtle">{t("widgetError")}</div>
+}
+
+// The diagnostic card must render even when the translation layer caused the error.
+class ErrorNoticeBoundary extends Component {
+  state = { failed: false }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  render() {
+    return this.state.failed ? staticNotice : (
+      <Suspense fallback={staticNotice}><ErrorNotice /></Suspense>
+    )
+  }
+}
 
 /**
  * Class-based error boundary scoped to a single admin widget.
@@ -56,9 +80,7 @@ export class WidgetBoundary extends Component<Props, State> {
           <div className="text-xs font-semibold uppercase tracking-wider text-ui-fg-error">
             {this.props.label}
           </div>
-          <div className="mt-1 text-xs text-ui-fg-subtle">
-            Widget zlyhal pri renderingu — zvyšok stránky funguje.
-          </div>
+          <ErrorNoticeBoundary />
           <div className="mt-2 text-xs font-mono text-ui-fg-base whitespace-pre-wrap break-all">
             {message}
           </div>

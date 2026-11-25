@@ -1,16 +1,15 @@
 import { Badge, Text } from "@medusajs/ui"
 
-import { formatPercent } from "./format"
+import { useCheckoutTranslation } from "../../lib/checkout-i18n"
+import { formatCount, formatPercent } from "./format"
 import {
   STAGE_COLOR,
-  STAGE_HINT,
-  STAGE_LABEL,
   type FunnelRow,
   type Stage,
 } from "./types"
 
 /**
- * The funnel — the page's answer to "kde to zákazníci vzdali".
+ * The funnel shows where shoppers stopped.
  *
  * Each rung is a bar whose width is the share of tracked shoppers that got at
  * least that far, so the taper IS the drop-off. Between two rungs sits the
@@ -31,12 +30,13 @@ export const Funnel = ({
   selected: Stage | null
   onSelect: (stage: Stage | null) => void
 }) => {
+  const { t, locale } = useCheckoutTranslation()
   const total = rows[0]?.reached ?? 0
 
   if (!total) {
     return (
       <Text size="small" className="text-ui-fg-subtle">
-        V tomto období nikto nepridal nič do košíka.
+        {t("emptyFunnel")}
       </Text>
     )
   }
@@ -52,21 +52,21 @@ export const Funnel = ({
               type="button"
               onClick={() => onSelect(isSelected ? null : row.stage)}
               aria-pressed={isSelected}
-              className={`w-full px-3 py-3 text-left focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ui-border-interactive ${
+              className={`w-full px-3 py-3 text-start focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ui-border-interactive ${
                 isSelected ? "bg-ui-bg-component" : "hover:bg-ui-bg-subtle-hover"
               }`}
             >
               <span className="flex items-start justify-between gap-3">
                 <span className="min-w-0">
-                  <span className="mr-2 font-mono text-xs tabular-nums text-ui-fg-subtle">
-                    {String(i + 1).padStart(2, "0")}
+                  <span className="me-2 font-mono text-xs tabular-nums text-ui-fg-subtle">
+                    {new Intl.NumberFormat(locale, { minimumIntegerDigits: 2 }).format(i + 1)}
                   </span>
-                  <span className="text-sm font-medium text-ui-fg-base">{STAGE_LABEL[row.stage]}</span>
-                  <span className="block text-xs text-ui-fg-subtle">{STAGE_HINT[row.stage]}</span>
+                  <span className="text-sm font-medium text-ui-fg-base">{t(`stage.${row.stage}`)}</span>
+                  <span className="block text-xs text-ui-fg-subtle">{t(`stageHint.${row.stage}`)}</span>
                 </span>
-                <span className="shrink-0 text-right text-sm font-medium tabular-nums text-ui-fg-base">
-                  {row.reached}
-                  <span className="ml-2 text-xs font-normal text-ui-fg-subtle">{formatPercent(row.reach_rate, 0)}</span>
+                <span className="shrink-0 text-end text-sm font-medium tabular-nums text-ui-fg-base">
+                  {formatCount(row.reached, locale)}
+                  <span className="ms-2 text-xs font-normal text-ui-fg-subtle">{formatPercent(row.reach_rate, locale, 0)}</span>
                 </span>
               </span>
               <span aria-hidden="true" className="mt-2 block overflow-hidden rounded bg-ui-bg-component" style={{ height: 5 }}>
@@ -77,7 +77,7 @@ export const Funnel = ({
               </span>
               {lost ? (
                 <span className="mt-2 block">
-                  <Badge size="2xsmall" color="orange">{lost} opustilo · {formatPercent(row.drop_rate)}</Badge>
+                  <Badge size="2xsmall" color="orange">{t("dropOff", { value: formatCount(lost, locale) })} · {formatPercent(row.drop_rate, locale)}</Badge>
                 </span>
               ) : null}
             </button>

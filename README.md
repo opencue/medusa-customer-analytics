@@ -81,7 +81,7 @@ selected for a promotion automatically.
 
 ## Dashboard preview and example data
 
-These screenshots show the real Medusa Admin with fictional demo data. No
+These screenshots show the real Medusa Admin in English with fictional demo data. No
 customer records or live-shop metrics are shown.
 
 ### Checkout overview
@@ -227,6 +227,19 @@ tracker" in the sidebar, funnel icon.
 The funnel populates from cart data immediately, with no storefront changes.
 [Wiring the beacon](#connect-your-storefront) adds the two page-only rungs plus
 device, locale, and exit-path detail.
+
+The tracker and its sidebar label follow the [Medusa Admin language setting](https://docs.medusajs.com/user-guide/tips/languages).
+The plugin ships translations for all 35 Admin languages in Medusa v2.23.0
+(including all languages in v2.13.4) and for Admins that expose Slovak.
+Unavailable translations fall back to English.
+Changing the Admin language does not change the storefront language or the
+currency of stored amounts.
+
+If pnpm cannot resolve the translation hook or the tracker shows translation
+keys, add `react-i18next` and `i18next` to your Medusa app at the same
+versions used by its `@medusajs/dashboard`. The plugin must share the Admin's
+translation instance (for example, `13.5.0` and `23.7.11` in Medusa v2.13.4;
+`18.0.1` and `27.1.1` in v2.23.0).
 
 ---
 
@@ -459,7 +472,7 @@ permanently failed.
   request, no pixel.
 - **Consent-gated by you.** The beacon only fires if your storefront calls it.
   Gate it behind your analytics consent; the funnel remains complete without it,
-  and the Admin shows page-level gaps as "no consent" rather than as a blank that
+  and the Admin marks missing page activity as "No page data" rather than leaving a blank that
   could be misread as a shopper who did nothing.
 
 ---
@@ -490,11 +503,6 @@ update path rather than silently dropping that stage.
 
 Known and deliberate, listed so you can decide before installing:
 
-- **The Admin UI is in Slovak.** The plugin was extracted from a Slovak
-  storefront and has no i18n layer yet — labels, hints and recommendation copy
-  under `src/admin/routes/checkout-tracker/` are hardcoded Slovak. The **API
-  payload is language-neutral** (English stage keys), so the data is fully usable
-  from your own UI. PRs adding i18n are welcome.
 - **2000-cart scan cap per request**, with no paging. Very high-volume shops will
   see `scan.capped: true` on long windows; the response says so rather than
   pretending otherwise.
