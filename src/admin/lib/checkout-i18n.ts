@@ -11,8 +11,18 @@ const REGIONAL_LOCALES: Record<string, string> = {
   zhTW: "zh-TW",
 }
 
+export const resolveCheckoutLocale = (language: string): string => {
+  const tag = REGIONAL_LOCALES[language] ?? language
+  try {
+    return Intl.NumberFormat.supportedLocalesOf(tag)[0] ?? "en"
+  } catch {
+    // Custom Admin IDs are not necessarily valid Intl language tags.
+    return "en"
+  }
+}
+
 export const useCheckoutTranslation = () => {
   const { t, i18n } = useTranslation(CHECKOUT_NAMESPACE)
   const language = i18n.resolvedLanguage || i18n.language || "en"
-  return { t, locale: REGIONAL_LOCALES[language] ?? language }
+  return { t, locale: resolveCheckoutLocale(language) }
 }

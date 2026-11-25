@@ -1,5 +1,6 @@
 import resources from ".."
 import en from "../json/en.json"
+import { resolveCheckoutLocale } from "../../lib/checkout-i18n"
 import { formatAgo, formatCount, formatMoney, formatPercent } from "../../routes/checkout-tracker/format"
 
 // Medusa Admin languages in v2.23.0, plus Slovak for stores that expose it.
@@ -27,6 +28,20 @@ test.each(languages)("%s translates every message and preserves placeholders", (
     expect(translated[key].trim()).not.toBe("")
     expect([key, placeholders(translated[key])]).toEqual([key, placeholders(english[key])])
   }
+})
+
+test.each([
+  ["ar", "ar"],
+  ["enGB", "en-GB"],
+  ["ptBR", "pt-BR"],
+  ["ptPT", "pt-PT"],
+  ["zhCN", "zh-CN"],
+  ["zhTW", "zh-TW"],
+  ["esES", "en"],
+  ["en_US", "en"],
+  ["zzz", "en"],
+])("resolves Admin language %s to formatting locale %s", (language, locale) => {
+  expect(resolveCheckoutLocale(language)).toBe(locale)
 })
 
 test("formats values and relative time in the active Admin locale", () => {
