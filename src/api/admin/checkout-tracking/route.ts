@@ -1,6 +1,6 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import type { Query } from "@medusajs/types"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import type { IOrderModuleService, Query } from "@medusajs/types"
 
 import { CHECKOUT_TRACKING_MODULE } from "../../../modules/checkout_tracking"
 import {
@@ -19,7 +19,6 @@ import {
 import {
   buildSaleCandidates,
   buildSoldUnitsBySku,
-  type OrderRow,
 } from "../../../modules/checkout_tracking/lib/sale-candidates"
 
 /**
@@ -116,19 +115,18 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   })
 
   // Orders in the same window, so "never purchased" is measured over exactly
-  // the period the funnel above describes. Same newest-first + JS window as the
-  // carts — query.graph ignores a created_at filter here too.
-  const { data: orderData } = await query.graph({
-    entity: "order",
-    fields: ["id", "created_at", "status", "items.variant_sku", "items.quantity"],
-    pagination: {
+  // the period the funnel above describes. The Order Module can date-filter
+  // directly and returns the formatted line-item quantities.
+  const orderService = req.scope.resolve<IOrderModuleService>(Modules.ORDER)
+  const orders = await orderService.listOrders(
+    { created_at: { $gte: since.toISOString(), $lte: now.toISOString() } },
+    {
+      select: ["id", "status"],
+      relations: ["items"],
       take: ORDER_SCAN_CAP + 1,
-      skip: 0,
-      order: { created_at: "DESC" },
-    },
-  })
-
-  const orders = ((orderData ?? []) as OrderRow[]).filter((order) => isInWindow(order.created_at, range))
+      order: { created_at: "DESC", id: "DESC" },
+    }
+  )
   const ordersCapped = orders.length > ORDER_SCAN_CAP
 
   const sale_candidates = capped || ordersCapped ? [] : buildSaleCandidates({

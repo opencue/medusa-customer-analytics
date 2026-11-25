@@ -454,7 +454,7 @@ Known and deliberate, listed so you can decide before installing:
 - **2000-cart scan cap per request**, with no paging. Very high-volume shops will
   see `scan.capped: true` on long windows; the response says so rather than
   pretending otherwise.
-- **The date window is applied in JavaScript, not SQL.** Medusa's `query.graph`
+- **The cart date window is applied in JavaScript, not SQL.** Medusa's `query.graph`
   silently ignores a `created_at` filter on `cart`, so filtering server-side
   would quietly build a "last 7 days" funnel from years of traffic. Rows are
   fetched newest-first and windowed in memory instead.

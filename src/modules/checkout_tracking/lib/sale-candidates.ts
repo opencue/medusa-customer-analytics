@@ -3,11 +3,9 @@ import { toNumber, type SessionRow } from "./dashboard"
 import { stageIndex, type FunnelStage } from "./stages"
 
 export type OrderRow = {
-  created_at?: string | Date | null
-  status?: string | null
   items?: Array<{
     variant_sku?: string | null
-    quantity?: number | null
+    quantity?: unknown
   }> | null
 }
 

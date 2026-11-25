@@ -1,18 +1,14 @@
 import { randomUUID } from "node:crypto"
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { createPromotionsWorkflow } from "@medusajs/medusa/core-flows"
-import type { Query } from "@medusajs/types"
+import type { IOrderModuleService } from "@medusajs/types"
 
 import {
   ORDER_SCAN_CAP,
   analyticsWindow,
-  isInWindow,
 } from "../../../../modules/checkout_tracking/lib/dashboard"
-import {
-  buildPromotionPerformance,
-  type PromotionOrder,
-} from "../../../../modules/checkout_tracking/lib/promotion-performance"
+import { buildPromotionPerformance } from "../../../../modules/checkout_tracking/lib/promotion-performance"
 
 /**
  * POST /admin/checkout-tracking/promotions
@@ -72,17 +68,17 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     throw new MedusaError(MedusaError.Types.INVALID_DATA, "code must contain 1–40 characters")
   }
   const range = analyticsWindow(req.query.days)
-  const query = req.scope.resolve<Query>(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({
-    entity: "order",
-    fields: [
-      "id", "created_at", "status", "currency_code", "total", "tax_total",
-      "items.adjustments.code", "items.adjustments.amount",
-      "shipping_methods.adjustments.code", "shipping_methods.adjustments.amount",
-    ],
-    pagination: { take: ORDER_SCAN_CAP + 1, skip: 0, order: { created_at: "DESC" } },
-  })
-  const orders = ((data ?? []) as PromotionOrder[]).filter((order) => isInWindow(order.created_at, range))
+  const orderService = req.scope.resolve<IOrderModuleService>(Modules.ORDER)
+  // In Medusa 2.13.4 a graph projection of just the adjustment fields can
+  // return zero totals. The module loads all relations needed to compute totals.
+  const orders = await orderService.listOrders(
+    { created_at: { $gte: range.since.toISOString(), $lte: range.now.toISOString() } },
+    {
+      select: ["id", "status", "currency_code", "total", "tax_total"],
+      take: ORDER_SCAN_CAP + 1,
+      order: { created_at: "DESC", id: "DESC" },
+    }
+  )
   res.json({
     ...buildPromotionPerformance(code, orders.slice(0, ORDER_SCAN_CAP)),
     scan: { capped: orders.length > ORDER_SCAN_CAP, cap: ORDER_SCAN_CAP },

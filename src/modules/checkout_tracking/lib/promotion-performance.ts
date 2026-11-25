@@ -5,7 +5,6 @@ type OrderLine = { adjustments?: Adjustment[] | null }
 
 export type PromotionOrder = {
   id: string
-  created_at?: string | Date | null
   status?: string | null
   currency_code: string
   total?: unknown
