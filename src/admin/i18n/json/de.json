@@ -27,7 +27,7 @@
   "lostValue": "Abgebrochen: {{amount}}",
   "convertedValue": "Abgeschlossen: {{amount}}",
   "recommendations": "Empfehlungen für abgebrochene Warenkörbe",
-  "recommendationsHint": "Produkte in den meisten abgebrochenen Warenkörben, die im ausgewählten Zeitraum nicht verkauft wurden",
+  "recommendationsHint": "Produkte, die am häufigsten in abgebrochenen Warenkörben lagen und im ausgewählten Zeitraum nicht verkauft wurden",
   "incomplete": "Unvollständige Daten. Wähle einen kürzeren Zeitraum aus, um Empfehlungen zu sehen.",
   "confidence": "Kleine Stichprobe, geringe Abdeckung oder uneindeutige Ergebnisse.",
   "emptyRecommendations": "Alle Produkte, die in mehreren abgebrochenen Warenkörben lagen, wurden in diesem Zeitraum mindestens einmal verkauft.",
