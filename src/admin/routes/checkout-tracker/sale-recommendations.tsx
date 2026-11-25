@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Text, toast } from "@medusajs/ui"
 
-import { formatMoney } from "./format"
+import { formatMoney, formatPercent } from "./format"
 import {
   ACTION_COLOR,
   ACTION_LABEL,
@@ -14,9 +14,7 @@ import {
  * "What should I put on sale" — and the one button that acts on the answer.
  *
  * The list is products shoppers kept putting in the basket and nobody bought
- * in the window. The recommended lever comes from WHERE those shoppers
- * stopped, not from the count alone, because a product discount is the wrong
- * spend when the objection formed at the shipping step.
+ * in the window. The last step suggests where to investigate, not the cause.
  *
  * Rows whose recommendation is not "discount" are still selectable. The
  * recommendation is evidence, not a lock — the merchant knows things the cart
@@ -69,7 +67,7 @@ const ActionBadge = ({ row }: { row: SaleCandidate }) => (
     {ACTION_LABEL[row.action]}
     {row.action_confidence === "low" ? (
       <span
-        title="Odporúčanie je odhad — pre týchto zákazníkov nemáme stránkové dáta, takže nevieme, na ktorom kroku presne odišli."
+        title="Malá vzorka, nízke pokrytie alebo nejednoznačný výsledok."
         className="opacity-70"
       >
         ?
@@ -80,26 +78,15 @@ const ActionBadge = ({ row }: { row: SaleCandidate }) => (
 
 export const SaleRecommendations = ({
   rows,
-  currency,
   onCreated,
 }: {
   rows: SaleCandidate[]
-  currency: string
-  onCreated?: () => void
+  onCreated: (code: string) => void
 }) => {
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [selectedCurrency, setSelectedCurrency] = useState("")
   const [percentage, setPercentage] = useState(String(DEFAULT_PERCENTAGE))
   const [busy, setBusy] = useState(false)
-
-  // Pre-tick exactly the rows whose evidence supports a discount. The merchant
-  // can add the others; they just should not be the default spend.
-  useEffect(() => {
-    setSelected(
-      new Set(
-        rows.filter((row) => row.action === "discount").map((row) => row.product_id)
-      )
-    )
-  }, [rows])
 
   if (!rows.length) {
     return (
@@ -109,6 +96,13 @@ export const SaleRecommendations = ({
       </Text>
     )
   }
+
+  const currencies = [...new Set(rows.map((row) => row.currency))]
+  const currency = currencies.includes(selectedCurrency) ? selectedCurrency : currencies[0]
+  const visible = rows.filter((row) => row.currency === currency)
+  const products = [...new Set(visible
+    .filter((row) => selectedCurrency === currency && selected.has(row.product_id))
+    .map((row) => row.product_id))]
 
   const toggle = (productId: string) =>
     setSelected((prev) => {
@@ -121,21 +115,22 @@ export const SaleRecommendations = ({
   const parsed = Number(percentage)
   const validPercentage =
     Number.isFinite(parsed) && parsed >= 1 && parsed <= 90
-  const canSubmit = selected.size > 0 && validPercentage && !busy
+  const canSubmit = products.length > 0 && validPercentage && !busy
 
   const submit = async () => {
     if (!canSubmit) return
     setBusy(true)
     try {
       const result = await createPromotion(
-        [...selected],
+        products,
         parsed,
         currency
       )
       toast.success("Akcia vytvorená ako koncept", {
         description: `Kód ${result.created.code} · −${result.created.percentage} % na ${result.created.product_count} produktov. Aktivujte ju v Promotions — zatiaľ nikomu nezľavňuje.`,
       })
-      onCreated?.()
+      onCreated(result.created.code)
+      setSelected(new Set())
     } catch (error) {
       toast.error("Akciu sa nepodarilo vytvoriť", {
         description: error instanceof Error ? error.message : String(error),
@@ -147,9 +142,24 @@ export const SaleRecommendations = ({
 
   return (
     <div className="mt-3.5">
+      {currencies.length > 1 ? (
+        <label className="mb-3 flex items-center gap-x-2 text-xs">
+          Mena
+          <select
+            value={currency}
+            disabled={busy}
+            onChange={(event) => {
+              setSelectedCurrency(event.target.value)
+              setSelected(new Set())
+            }}
+          >
+            {currencies.map((code) => <option key={code} value={code}>{code.toUpperCase()}</option>)}
+          </select>
+        </label>
+      ) : null}
       <div className="flex flex-col gap-y-2">
-        {rows.map((row) => {
-          const checked = selected.has(row.product_id)
+        {visible.map((row) => {
+          const checked = products.includes(row.product_id)
           const topStage = row.stage_mix[0]
 
           return (
@@ -164,7 +174,15 @@ export const SaleRecommendations = ({
               <input
                 type="checkbox"
                 checked={checked}
-                onChange={() => toggle(row.product_id)}
+                disabled={busy}
+                onChange={() => {
+                  if (selectedCurrency !== currency) {
+                    setSelectedCurrency(currency)
+                    setSelected(new Set([row.product_id]))
+                  } else {
+                    toggle(row.product_id)
+                  }
+                }}
                 className="size-4 shrink-0 accent-[#6366f1]"
               />
 
@@ -206,6 +224,9 @@ export const SaleRecommendations = ({
                     </>
                   ) : null}
                 </span>
+                <span className="mt-0.5 block text-[10.5px] text-ui-fg-muted">
+                  Stránkové dáta: {row.observed_sessions}/{row.abandoned_carts} ({formatPercent(row.observed_coverage, 0)})
+                </span>
               </span>
             </label>
           )
@@ -235,8 +256,8 @@ export const SaleRecommendations = ({
         >
           {busy
             ? "Vytváram…"
-            : `Vytvoriť akciu · ${selected.size} ${
-                selected.size === 1 ? "produkt" : "produktov"
+            : `Vytvoriť akciu · ${products.length} ${
+                products.length === 1 ? "produkt" : "produktov"
               }`}
         </button>
 

@@ -83,7 +83,7 @@ const time = (value: string | null): number => {
 }
 
 /** Newest activity on a cart — a cart touched later is the better anchor. */
-const activityAt = (row: SessionRow): number =>
+export const activityAt = (row: SessionRow): number =>
   Math.max(time(row.last_seen_at), time(row.updated_at), time(row.created_at))
 
 /**
@@ -163,7 +163,7 @@ export const groupSessionsByVisitor = (
     // matches anything.
     const signature = basketSignature(row)
     const fingerprint = signature
-      ? `${signature}::${row.device ?? "?"}::${row.locale ?? "?"}`
+      ? `${signature}::${row.currency_code}::${row.device ?? "?"}::${row.locale ?? "?"}`
       : null
 
     const match = fingerprint

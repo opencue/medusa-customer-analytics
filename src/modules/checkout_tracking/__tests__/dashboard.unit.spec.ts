@@ -82,9 +82,119 @@ describe("buildDashboard — merging the two observers", () => {
     expect(out.sessions.map((s) => s.cart_id)).toEqual(["cart_2"])
     expect(out.totals.tracked).toBe(1)
   })
+
+  it("does not count an empty cart's exit beacon as an add-to-cart", () => {
+    const out = buildDashboard({
+      carts: [cart({ id: "empty", items: [] }), cart({ id: "emptied_after_review", items: [] })],
+      journeys: [
+        journey({ cart_id: "empty", stage: "cart" }),
+        journey({ cart_id: "emptied_after_review", stage: "review" }),
+      ],
+    })
+    expect(out.sessions.map((s) => s.cart_id)).toEqual(["emptied_after_review"])
+    expect(out.funnel[0]).toMatchObject({ stage: "cart", reached: 1 })
+  })
 })
 
 describe("buildDashboard — totals", () => {
+  it("excludes active carts from abandonment and keeps currencies separate", () => {
+    const out = buildDashboard({
+      now: new Date("2026-08-03T12:00:00Z"),
+      carts: [
+        cart({ id: "old-eur" }),
+        cart({ id: "old-huf", currency_code: "huf", total: 12000 }),
+        cart({ id: "in-progress" }),
+      ],
+      journeys: [journey({ cart_id: "in-progress", last_seen_at: "2026-08-03T11:55:00Z" })],
+    })
+
+    expect(out.totals).toMatchObject({ active: 1, abandoned: 2, lost_value: null })
+    expect(out.totals.by_currency).toEqual([
+      { currency: "eur", lost_value: 100, converted_value: 0 },
+      { currency: "huf", lost_value: 12000, converted_value: 0 },
+    ])
+    expect(out.funnel.find((row) => row.stage === "checkout_entered")?.dropped).toBe(0)
+    expect(out.abandoned_products.map((row) => row.currency)).toEqual(["eur", "huf"])
+  })
+
+  it("recognizes a later completion after an observed quiet period", () => {
+    const out = buildDashboard({
+      now: new Date("2026-08-03T12:00:00Z"),
+      carts: [
+        cart({ id: "recovered", updated_at: "2026-08-03T11:35:00Z",
+          completed_at: "2026-08-03T11:35:00Z" }),
+        cart({ id: "normal", completed_at: "2026-08-03T10:10:00Z" }),
+      ],
+      journeys: [journey({ cart_id: "recovered", last_seen_at: "2026-08-03T10:11:00Z" })],
+    })
+    expect(out.totals).toMatchObject({ completed: 2, recovered: 1, abandoned: 0 })
+    expect(out.visitors.find((v) => v.lead.cart_id === "recovered")?.status).toBe("recovered")
+  })
+
+  it("recognizes a quiet period even if the shopper is active again before paying", () => {
+    const out = buildDashboard({
+      now: new Date("2026-08-03T12:30:00Z"),
+      carts: [cart({
+        id: "returned",
+        updated_at: "2026-08-03T12:05:00Z",
+        completed_at: "2026-08-03T12:05:00Z",
+      })],
+      journeys: [journey({
+        cart_id: "returned",
+        last_seen_at: "2026-08-03T12:00:00Z",
+        returned_at: "2026-08-03T11:50:00Z",
+      })],
+    })
+    expect(out.visitors[0].status).toBe("recovered")
+  })
+
+  it("does not infer a quiet period from first-stage timestamps", () => {
+    const out = buildDashboard({
+      carts: [cart({
+        id: "continuous",
+        updated_at: "2026-08-03T12:05:00Z",
+        completed_at: "2026-08-03T12:05:00Z",
+      })],
+      journeys: [journey({
+        cart_id: "continuous",
+        last_seen_at: "2026-08-03T12:00:00Z",
+        stage_at: { checkout_entered: "2026-08-03T10:00:00Z" },
+      })],
+    })
+    expect(out.visitors[0].status).toBe("completed")
+  })
+
+  it("does not merge different SKU-less products with the same title", () => {
+    const out = buildDashboard({
+      now: new Date("2026-08-03T12:00:00Z"),
+      carts: ["prod_first", "prod_second"].map((id, i) => cart({
+        id,
+        email: "shopper@example.test",
+        items: [{ product_id: id, product_title: "Same name", quantity: 1, unit_price: 20 + i }],
+      })),
+      journeys: [],
+    })
+    expect(out.totals.abandoned).toBe(1)
+    expect(out.abandoned_products.map((p) => [p.carts, p.value])).toEqual([[1, 21], [1, 20]])
+    expect(new Set(out.abandoned_products.map((p) => p.key)).size).toBe(2)
+  })
+
+  it("keeps distinct products across one shopper's inactive baskets", () => {
+    const base = cart({ id: "old", email: "shopper@example.test" })
+    const out = buildDashboard({
+      now: new Date("2026-08-03T12:00:00Z"),
+      carts: [
+        { ...base, items: [...(base.items ?? []), { title: "Other", variant_sku: "OTHER", quantity: 1, unit_price: 20 }] },
+        cart({ id: "new", email: base.email, updated_at: "2026-08-03T10:10:00Z" }),
+      ],
+      journeys: [],
+    })
+    expect(out.totals.abandoned).toBe(1)
+    expect(out.abandoned_products.map((row) => [row.sku, row.carts, row.value])).toEqual([
+      ["CINKA-20", 1, 100], ["OTHER", 1, 20],
+    ])
+  })
+
   const mixed = () =>
     buildDashboard({
       carts: [

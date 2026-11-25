@@ -1,5 +1,5 @@
-import { buildSaleCandidates, MIN_ABANDONED_CARTS } from "../lib/sale-candidates"
-import type { SessionRow } from "../lib/dashboard"
+import { buildSaleCandidates, isSaleProduct, MIN_ABANDONED_CARTS } from "../lib/sale-candidates"
+import { abandonedProductBaskets, type SessionRow } from "../lib/dashboard"
 import type { FunnelStage } from "../lib/stages"
 
 let seq = 0
@@ -49,6 +49,23 @@ const carts = (n: number, stage: FunnelStage = "cart", over = {}) =>
   Array.from({ length: n }, () => session(stage, over))
 
 describe("buildSaleCandidates — what gets on the list", () => {
+  it("counts non-lead baskets without counting one shopper twice for the same product", () => {
+    const lead = session("delivery", { items: [item({ sku: "OTHER" })] })
+    const earlier = session("cart")
+    const visitor = {
+      key: "shopper-1", matched_by: "email" as const, status: "abandoned" as const,
+      lead, carts: [lead, earlier, session("cart")], cart_count: 3,
+    }
+    const second = session("cart")
+    const sessions = abandonedProductBaskets([
+      visitor,
+      { ...visitor, key: "shopper-2", lead: second, carts: [second], cart_count: 1 },
+    ], isSaleProduct)
+    const rows = buildSaleCandidates({ sessions, soldUnitsBySku: {} })
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ sku: "CINKA-20", abandoned_carts: 2, stranded_value: 200 })
+  })
+
   it("ranks a never-sold product by how many carts it blocked", () => {
     const rows = buildSaleCandidates({
       sessions: carts(4),
@@ -225,8 +242,18 @@ describe("buildSaleCandidates — which lever it recommends", () => {
       soldUnitsBySku: {},
     })
     expect(rows[0].observed_sessions).toBe(0)
-    expect(rows[0].action).toBe("discount")
+    expect(rows[0].action).toBe("investigate")
     expect(rows[0].action_confidence).toBe("low")
+  })
+
+  it("does not let a single observed cart speak for the unobserved majority", () => {
+    const rows = buildSaleCandidates({
+      sessions: [...carts(1, "delivery", observed), ...carts(5)],
+      soldUnitsBySku: {},
+    })
+    expect(rows[0]).toMatchObject({
+      action: "investigate", observed_sessions: 1, observed_coverage: 1 / 6,
+    })
   })
 
   it("reports the step mix most common first", () => {
@@ -249,16 +276,18 @@ describe("buildSaleCandidates — edges", () => {
     expect(buildSaleCandidates({ sessions: [], soldUnitsBySku: {} })).toEqual([])
   })
 
-  it("groups a product with no SKU by title instead of merging them all", () => {
+  it("groups by product ID when SKU is missing, even if two titles match", () => {
+    const withoutSku = (product_id: string) => item({ sku: null, product_id, title: "Bez SKU" })
     const rows = buildSaleCandidates({
       sessions: [
-        session("cart", { items: [item({ sku: null, title: "Bez SKU A" })] }),
-        session("cart", { items: [item({ sku: null, title: "Bez SKU A" })] }),
-        session("cart", { items: [item({ sku: null, title: "Bez SKU B" })] }),
-        session("cart", { items: [item({ sku: null, title: "Bez SKU B" })] }),
+        session("cart", { items: [withoutSku("prod_a")] }),
+        session("cart", { items: [withoutSku("prod_a")] }),
+        session("cart", { items: [withoutSku("prod_b")] }),
+        session("cart", { items: [withoutSku("prod_b")] }),
       ],
       soldUnitsBySku: {},
     })
-    expect(rows.map((r) => r.title).sort()).toEqual(["Bez SKU A", "Bez SKU B"])
+    expect(rows.map((r) => r.product_id).sort()).toEqual(["prod_a", "prod_b"])
+    expect(rows.map((r) => r.abandoned_carts)).toEqual([2, 2])
   })
 })

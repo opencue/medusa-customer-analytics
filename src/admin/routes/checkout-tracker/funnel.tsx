@@ -1,4 +1,4 @@
-import { Text } from "@medusajs/ui"
+import { Badge, Text } from "@medusajs/ui"
 
 import { formatPercent } from "./format"
 import {
@@ -42,85 +42,49 @@ export const Funnel = ({
   }
 
   return (
-    <div className="mt-4 flex flex-col">
+    <ol className="mt-4 divide-y divide-ui-border-base overflow-hidden rounded-lg border border-ui-border-base">
       {rows.map((row, i) => {
-        const isLast = i === rows.length - 1
-        const isActive = selected === row.stage
-        // On the final rung `dropped` is the conversions, not a loss.
-        const lost = isLast ? 0 : row.dropped
-
+        const isSelected = selected === row.stage
+        const lost = row.stage === "completed" ? 0 : row.dropped
         return (
-          <div key={row.stage}>
+          <li key={row.stage}>
             <button
               type="button"
-              onClick={() => onSelect(isActive ? null : row.stage)}
-              aria-pressed={isActive}
-              className={`w-full rounded-lg px-2.5 py-2 text-left transition-colors ${
-                isActive
-                  ? "bg-ui-bg-component"
-                  : "hover:bg-ui-bg-subtle-hover"
+              onClick={() => onSelect(isSelected ? null : row.stage)}
+              aria-pressed={isSelected}
+              className={`w-full px-3 py-3 text-left focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ui-border-interactive ${
+                isSelected ? "bg-ui-bg-component" : "hover:bg-ui-bg-subtle-hover"
               }`}
             >
-              <div className="flex items-baseline justify-between gap-x-3">
-                <div className="flex min-w-0 items-baseline gap-x-2">
-                  <span
-                    className="inline-flex size-[18px] shrink-0 translate-y-[3px] items-center justify-center rounded-full text-[10px] font-bold text-white"
-                    style={{ background: STAGE_COLOR[row.stage] }}
-                  >
-                    {i + 1}
+              <span className="flex items-start justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="mr-2 font-mono text-xs tabular-nums text-ui-fg-subtle">
+                    {String(i + 1).padStart(2, "0")}
                   </span>
-                  <span className="truncate text-[13px] font-semibold text-ui-fg-base">
-                    {STAGE_LABEL[row.stage]}
-                  </span>
-                  <span className="hidden truncate text-[11px] text-ui-fg-muted lg:inline">
-                    {STAGE_HINT[row.stage]}
-                  </span>
-                </div>
-                <div className="flex shrink-0 items-baseline gap-x-2 tabular-nums">
-                  <span className="text-[13px] font-semibold text-ui-fg-base">
-                    {row.reached}
-                  </span>
-                  <span className="w-[52px] text-right text-[11px] text-ui-fg-subtle">
-                    {formatPercent(row.reach_rate, 0)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-ui-bg-component">
-                <div
-                  className="h-full rounded-full transition-[width] duration-500"
-                  style={{
-                    width: `${Math.max(row.reach_rate * 100, row.reached > 0 ? 1.5 : 0)}%`,
-                    background: `linear-gradient(90deg, ${STAGE_COLOR[row.stage]}, ${STAGE_COLOR[row.stage]}bb)`,
-                  }}
+                  <span className="text-sm font-medium text-ui-fg-base">{STAGE_LABEL[row.stage]}</span>
+                  <span className="block text-xs text-ui-fg-subtle">{STAGE_HINT[row.stage]}</span>
+                </span>
+                <span className="shrink-0 text-right text-sm font-medium tabular-nums text-ui-fg-base">
+                  {row.reached}
+                  <span className="ml-2 text-xs font-normal text-ui-fg-subtle">{formatPercent(row.reach_rate, 0)}</span>
+                </span>
+              </span>
+              <span aria-hidden="true" className="mt-2 block overflow-hidden rounded bg-ui-bg-component" style={{ height: 5 }}>
+                <span
+                  className="block h-full rounded"
+                  style={{ width: `${row.reach_rate * 100}%`, background: "var(--fg-base)" }}
                 />
-              </div>
+              </span>
+              {lost ? (
+                <span className="mt-2 block">
+                  <Badge size="2xsmall" color="orange">{lost} opustilo · {formatPercent(row.drop_rate)}</Badge>
+                </span>
+              ) : null}
             </button>
-
-            {!isLast ? (
-              <div className="flex items-center gap-x-2 py-1 pl-[13px] pr-2.5">
-                <span className="h-3.5 w-px bg-ui-border-strong" />
-                {lost > 0 ? (
-                  <span
-                    className="rounded-full px-2 py-[2px] text-[10.5px] font-medium tabular-nums"
-                    style={{
-                      background: "rgba(255,91,46,0.12)",
-                      color: "#ff5b2e",
-                    }}
-                  >
-                    ↓ {lost} odišlo · {formatPercent(row.drop_rate, 1)}
-                  </span>
-                ) : (
-                  <span className="text-[10.5px] text-ui-fg-muted">
-                    ↓ nikto neodišiel
-                  </span>
-                )}
-              </div>
-            ) : null}
-          </div>
+          </li>
         )
       })}
-    </div>
+    </ol>
   )
 }
 

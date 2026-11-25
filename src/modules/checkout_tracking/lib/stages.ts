@@ -88,7 +88,7 @@ export type CartLike = {
   } | null
 }
 
-const hasRows = (value: Array<unknown> | null | undefined): boolean =>
+export const hasRows = (value: Array<unknown> | null | undefined): boolean =>
   Array.isArray(value) && value.length > 0
 
 /**
@@ -148,7 +148,8 @@ export type FunnelRow = {
  * rungs and their neighbours would be pure noise.
  */
 export const buildFunnel = (
-  furthest: Array<FunnelStage | null | undefined>
+  furthest: Array<FunnelStage | null | undefined>,
+  activeStages: FunnelStage[] = []
 ): FunnelRow[] => {
   const endedAt = new Array<number>(FUNNEL_STAGES.length).fill(0)
   let total = 0
@@ -167,6 +168,9 @@ export const buildFunnel = (
     running += endedAt[i]
     reached[i] = running
   }
+
+  // Active sessions contribute to reach, but have not dropped out.
+  for (const stage of activeStages) endedAt[stageIndex(stage)] -= 1
 
   return FUNNEL_STAGES.map((stage, i) => ({
     stage,

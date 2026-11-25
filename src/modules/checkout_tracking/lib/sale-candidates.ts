@@ -1,39 +1,11 @@
-/**
- * Which products to put on sale — ranked from what shoppers actually did.
- *
- * The question this answers: "what did people keep putting in the basket and
- * then never buy?" A product that many shoppers chose, and that nobody
- * completed an order for, is the clearest signal the shop has that something
- * about it stops the sale.
- *
- * What it deliberately does NOT do is claim the price is that something.
- * Abandonment is dominated by shipping cost, delivery time and payment
- * friction at least as much as by price, so a blanket "discount the top
- * abandoned product" is often the wrong lever. Where the tracker knows the
- * step a shopper stopped on, that step is used to pick the lever:
- *
- *   - stopped in the basket or on the way into checkout → the objection formed
- *     before any shipping or payment detail was shown, so the product itself
- *     (price, description, images) is the thing to move → DISCOUNT
- *   - stopped choosing delivery → the price was accepted and the shipping cost
- *     was not → FREE SHIPPING, and a product discount would be money spent on
- *     the wrong objection
- *   - stopped at payment → the shopper had accepted price AND shipping, so
- *     this is friction, not cost → NO discount; go and look at the payment step
- *
- * That split only works for shoppers whose storefront data was collected, so
- * every recommendation carries how confident the step evidence is. With no
- * consented visitors the step mix is unknown, and this says so rather than
- * dressing "we only know they added it to the basket" up as insight.
- */
-import { toNumber, type SessionRow } from "./dashboard"
+/** Rank products by abandonment. The last step suggests what to test, not why someone left. */
+import { checkoutItemKey, toNumber, type ProductBasket } from "./dashboard"
 import { stageIndex, type FunnelStage } from "./stages"
 
 export type OrderRow = {
-  created_at?: string | Date | null
   items?: Array<{
     variant_sku?: string | null
-    quantity?: number | null
+    quantity?: unknown
   }> | null
 }
 
@@ -72,21 +44,17 @@ export type SaleCandidate = {
   units: number
   /** Value of this product's lines across those carts. */
   stranded_value: number
+  currency: string
   /** Units sold in the same window. Candidates are those with zero. */
   sold_units: number
   /** Where those shoppers stopped, most common first. */
   stage_mix: Array<{ stage: FunnelStage; carts: number }>
   action: RecommendedAction
-  /**
-   * How much the `action` can be trusted.
-   *
-   * "low" means no shopper carrying this product had storefront data, so the
-   * step mix is really just "it was in a basket" — the action defaults to
-   * `discount` because that is the only lever the basket alone justifies.
-   */
+  /** Strength of the observed stage pattern, not confidence in its cause. */
   action_confidence: "low" | "high"
   /** Sessions behind this row that reported page-level data. */
   observed_sessions: number
+  observed_coverage: number
 }
 
 /**
@@ -109,22 +77,16 @@ const PRODUCT_OBJECTION_STAGES: FunnelStage[] = [
 ]
 
 const decideAction = (
-  stageMix: Array<{ stage: FunnelStage; carts: number }>,
-  observedSessions: number
+  observedStages: Map<FunnelStage, number>,
+  observedSessions: number,
+  abandonedCarts: number
 ): { action: RecommendedAction; confidence: "low" | "high" } => {
-  // Nothing but cart-level evidence: the honest default is the product lever,
-  // because that is all a basket on its own can support.
-  if (observedSessions === 0) {
-    return { action: "discount", confidence: "low" }
+  if (observedSessions < 3 || observedSessions / abandonedCarts < 0.5) {
+    return { action: "investigate", confidence: "low" }
   }
 
-  const total = stageMix.reduce((sum, row) => sum + row.carts, 0)
-  if (total === 0) return { action: "discount", confidence: "low" }
-
   const at = (stages: FunnelStage[]): number =>
-    stageMix
-      .filter((row) => stages.includes(row.stage))
-      .reduce((sum, row) => sum + row.carts, 0)
+    stages.reduce((sum, stage) => sum + (observedStages.get(stage) ?? 0), 0)
 
   const product = at(PRODUCT_OBJECTION_STAGES)
   const delivery = at(["delivery"])
@@ -132,26 +94,31 @@ const decideAction = (
 
   // Strict majority, not a plurality: recommending free shipping off a 40/30/30
   // split would be picking a lever on noise.
-  if (delivery > total / 2) return { action: "free_shipping", confidence: "high" }
-  if (payment > total / 2) return { action: "investigate", confidence: "high" }
-  if (product > total / 2) return { action: "discount", confidence: "high" }
-
-  // No clear majority — the demand is real but the reason is not established.
-  return { action: "discount", confidence: "low" }
+  if (delivery > observedSessions / 2) return { action: "free_shipping", confidence: "high" }
+  if (payment > observedSessions / 2) return { action: "investigate", confidence: "high" }
+  if (product > observedSessions / 2) return { action: "discount", confidence: "high" }
+  return { action: "investigate", confidence: "low" }
 }
 
 export type BuildSaleCandidatesInput = {
-  sessions: SessionRow[]
+  sessions: ProductBasket[]
   /** Units sold per SKU in the same window, from completed orders. */
   soldUnitsBySku: Record<string, number>
 }
+
+type ProductItem = ProductBasket["items"][number]
+
+/** No free gifts, surcharges or other lines that cannot be targeted. */
+export const isSaleProduct = (item: ProductItem): item is ProductItem & { product_id: string } =>
+  !item.is_gift && !!item.product_id && item.unit_price > 0
 
 export const buildSaleCandidates = ({
   sessions,
   soldUnitsBySku,
 }: BuildSaleCandidatesInput): SaleCandidate[] => {
-  type Draft = Omit<SaleCandidate, "action" | "action_confidence" | "stage_mix"> & {
+  type Draft = Omit<SaleCandidate, "action" | "action_confidence" | "stage_mix" | "observed_coverage"> & {
     stages: Map<FunnelStage, number>
+    observedStages: Map<FunnelStage, number>
   }
 
   const drafts = new Map<string, Draft>()
@@ -164,22 +131,9 @@ export const buildSaleCandidates = ({
     const seen = new Set<string>()
 
     for (const item of session.items) {
-      // Skip anything that is not a sellable catalogue line.
-      //
-      // Carts here carry auto-added lines the shopper never chose: a free gift
-      // and the cash-on-delivery surcharge. Both ride along on most abandoned
-      // baskets, so left in they dominate the ranking — and both are nonsense
-      // to discount (15% of a €0 gift is €0; the COD fee is not a product).
-      //
-      // The two tests are structural rather than name matches, so they keep
-      // working when the gift changes or a new fee line is introduced:
-      //   - no product id  → it is a synthetic line, and a promotion cannot
-      //     target it even in principle;
-      //   - no price       → there is nothing for a percentage to act on.
-      if (!item.product_id) continue
-      if (item.unit_price <= 0) continue
+      if (!isSaleProduct(item)) continue
 
-      const key = item.sku ?? `title:${item.title}`
+      const key = checkoutItemKey(session.currency_code, item)
 
       const draft: Draft = drafts.get(key) ?? {
         key,
@@ -190,9 +144,11 @@ export const buildSaleCandidates = ({
         abandoned_carts: 0,
         units: 0,
         stranded_value: 0,
+        currency: session.currency_code,
         sold_units: item.sku ? (soldUnitsBySku[item.sku] ?? 0) : 0,
         observed_sessions: 0,
         stages: new Map<FunnelStage, number>(),
+        observedStages: new Map<FunnelStage, number>(),
       }
 
       // Once per cart, so `abandoned_carts` stays a cart count even when a
@@ -204,7 +160,13 @@ export const buildSaleCandidates = ({
           session.stage,
           (draft.stages.get(session.stage) ?? 0) + 1
         )
-        if (session.observed_by !== "cart") draft.observed_sessions += 1
+        if (session.observed_by !== "cart") {
+          draft.observed_sessions += 1
+          draft.observedStages.set(
+            session.stage,
+            (draft.observedStages.get(session.stage) ?? 0) + 1
+          )
+        }
       }
 
       draft.units += item.quantity
@@ -230,14 +192,16 @@ export const buildSaleCandidates = ({
         )
 
       const { action, confidence } = decideAction(
-        stage_mix,
-        draft.observed_sessions
+        draft.observedStages,
+        draft.observed_sessions,
+        draft.abandoned_carts
       )
 
-      const { stages: _stages, ...rest } = draft
+      const { stages: _stages, observedStages: _observedStages, ...rest } = draft
       return {
         ...rest,
         stage_mix,
+        observed_coverage: draft.observed_sessions / draft.abandoned_carts,
         action,
         action_confidence: confidence,
       }
@@ -245,6 +209,7 @@ export const buildSaleCandidates = ({
     .sort(
       (a, b) =>
         b.abandoned_carts - a.abandoned_carts ||
+        a.currency.localeCompare(b.currency) ||
         b.stranded_value - a.stranded_value
     )
     .slice(0, TOP_CANDIDATES)

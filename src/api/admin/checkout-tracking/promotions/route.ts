@@ -1,6 +1,14 @@
+import { randomUUID } from "node:crypto"
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework"
-import { MedusaError } from "@medusajs/framework/utils"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { createPromotionsWorkflow } from "@medusajs/medusa/core-flows"
+import type { IOrderModuleService } from "@medusajs/types"
+
+import {
+  ORDER_SCAN_CAP,
+  analyticsWindow,
+} from "../../../../modules/checkout_tracking/lib/dashboard"
+import { buildPromotionPerformance } from "../../../../modules/checkout_tracking/lib/promotion-performance"
 
 /**
  * POST /admin/checkout-tracking/promotions
@@ -26,6 +34,7 @@ import { createPromotionsWorkflow } from "@medusajs/medusa/core-flows"
 const MAX_PRODUCTS = 50
 const MIN_PERCENTAGE = 1
 const MAX_PERCENTAGE = 90
+const MAX_CODE_LENGTH = 40
 
 /**
  * Units per line the discount applies to. Medusa requires this whenever the
@@ -46,12 +55,34 @@ type Body = {
   currency_code?: unknown
 }
 
-/** `AKCIA-` + 6 chars of the id, so two runs never collide on a code. */
-const buildCode = (raw: unknown, seed: string): string => {
+const buildCode = (raw: unknown): string => {
   if (typeof raw === "string" && raw.trim()) {
-    return raw.trim().toUpperCase().slice(0, 40)
+    return raw.trim().toUpperCase().slice(0, MAX_CODE_LENGTH)
   }
-  return `AKCIA-${seed.replace(/[^0-9A-Za-z]/g, "").slice(-6).toUpperCase()}`
+  return `AKCIA-${randomUUID().slice(0, 13).toUpperCase()}`
+}
+
+export async function GET(req: MedusaRequest, res: MedusaResponse) {
+  const code = typeof req.query.code === "string" ? req.query.code.trim() : ""
+  if (!code || code.length > MAX_CODE_LENGTH) {
+    throw new MedusaError(MedusaError.Types.INVALID_DATA, "code must contain 1–40 characters")
+  }
+  const range = analyticsWindow(req.query.days)
+  const orderService = req.scope.resolve<IOrderModuleService>(Modules.ORDER)
+  // In Medusa 2.13.4 a graph projection of just the adjustment fields can
+  // return zero totals. The module loads all relations needed to compute totals.
+  const orders = await orderService.listOrders(
+    { created_at: { $gte: range.since.toISOString(), $lte: range.now.toISOString() } },
+    {
+      select: ["id", "status", "currency_code", "total", "tax_total"],
+      take: ORDER_SCAN_CAP + 1,
+      order: { created_at: "DESC", id: "DESC" },
+    }
+  )
+  res.json({
+    ...buildPromotionPerformance(code, orders.slice(0, ORDER_SCAN_CAP)),
+    scan: { capped: orders.length > ORDER_SCAN_CAP, cap: ORDER_SCAN_CAP },
+  })
 }
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
@@ -91,7 +122,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       ? body.currency_code.trim().toLowerCase()
       : "eur"
 
-  const code = buildCode(body.code, productIds[0])
+  const code = buildCode(body.code)
 
   const { result } = await createPromotionsWorkflow(req.scope).run({
     input: {

@@ -43,6 +43,16 @@ export type VisitorGroup = {
   lead: SessionRow
   carts: SessionRow[]
   cart_count: number
+  status: CheckoutStatus
+}
+
+export type CheckoutStatus = "active" | "abandoned" | "completed" | "recovered"
+
+export const STATUS_LABEL: Record<CheckoutStatus, string> = {
+  active: "Rozpracovaný",
+  abandoned: "Opustený",
+  completed: "Dokončený",
+  recovered: "Dokončený po návrate",
 }
 
 export type SessionRow = {
@@ -73,19 +83,21 @@ export type AbandonedProduct = {
   carts: number
   units: number
   value: number
+  currency: string
 }
 
 export type TrackerResponse = {
   range: { days: number; since: string; now: string }
+  abandonment_minutes: number
   funnel: FunnelRow[]
   totals: {
     tracked: number
     completed: number
+    active: number
     abandoned: number
+    recovered: number
     conversion_rate: number
-    lost_value: number
-    converted_value: number
-    currency: string
+    by_currency: Array<{ currency: string; lost_value: number; converted_value: number }>
     with_storefront_data: number
   }
   /** One entry per shopper; `lead` is the cart worth acting on. */
@@ -94,12 +106,24 @@ export type TrackerResponse = {
   abandoned_products: AbandonedProduct[]
   exit_paths: Array<{ path: string; count: number }>
   sale_candidates: SaleCandidate[]
-  scan: { carts: number; cap: number; capped: boolean }
+  scan: { carts: number; cap: number; capped: boolean; orders_capped: boolean }
+}
+
+export type PromotionPerformance = {
+  code: string
+  orders: number
+  by_currency: Array<{
+    currency: string
+    orders: number
+    discount_value: number
+    order_value_ex_tax: number | null
+  }>
+  scan: { capped: boolean; cap: number }
 }
 
 /** Slovak labels + the one-line explanation of what each rung means. */
 export const STAGE_LABEL: Record<Stage, string> = {
-  cart: "Pridal do košíka",
+  cart: "Pridať do košíka",
   checkout_entered: "Otvoril checkout",
   address: "Vyplnil adresu",
   delivery: "Zvolil dopravu",
@@ -109,7 +133,7 @@ export const STAGE_LABEL: Record<Stage, string> = {
 }
 
 export const STAGE_HINT: Record<Stage, string> = {
-  cart: "Košík má aspoň jednu položku",
+  cart: "Košík s položkou alebo preukázaný ďalší krok",
   checkout_entered: "Otvoril stránku /checkout",
   address: "Uložená dodacia adresa",
   delivery: "Vybraný spôsob dopravy",
@@ -147,27 +171,29 @@ export type SaleCandidate = {
   abandoned_carts: number
   units: number
   stranded_value: number
+  currency: string
   sold_units: number
   stage_mix: Array<{ stage: Stage; carts: number }>
   action: RecommendedAction
   action_confidence: "low" | "high"
   observed_sessions: number
+  observed_coverage: number
 }
 
 /** Slovak label + the reasoning, shown so the operator can disagree with it. */
 export const ACTION_LABEL: Record<RecommendedAction, string> = {
-  discount: "Zľava",
-  free_shipping: "Doprava zdarma",
-  investigate: "Preveriť platbu",
+  discount: "Zvážiť test zľavy",
+  free_shipping: "Preveriť dopravu",
+  investigate: "Preskúmať",
 }
 
 export const ACTION_WHY: Record<RecommendedAction, string> = {
   discount:
-    "Odišli skôr, než uvideli cenu dopravy — námietka je pri produkte samotnom.",
+    "Pozorovaní zákazníci najčastejšie prestali pred dopravou. Skontrolujte produkt a cenu; tento krok neprezrádza dôvod.",
   free_shipping:
-    "Cenu produktu prijali, cenu dopravy nie. Zľava z produktu mieri vedľa.",
+    "Pozorovaní zákazníci najčastejšie prestali pri doprave. Skontrolujte dostupnosť, cenu a termín doručenia.",
   investigate:
-    "Prijali cenu aj dopravu a zastavili sa až pri platbe — to nie je o cene.",
+    "Preskúmajte krok a priebeh checkoutu. Samotný krok neurčuje príčinu.",
 }
 
 export const ACTION_COLOR: Record<RecommendedAction, string> = {

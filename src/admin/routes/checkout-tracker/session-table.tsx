@@ -13,6 +13,7 @@ import {
   STAGES,
   STAGE_COLOR,
   STAGE_LABEL,
+  STATUS_LABEL,
   type SessionItem,
   type SessionRow,
   type VisitorGroup,
@@ -161,7 +162,7 @@ export const SessionTable = ({
       <table className="w-full min-w-[820px] border-collapse">
         <thead>
           <tr className="border-b border-ui-border-base text-left">
-            {["Kedy", "Zákazník", "Obsah košíka", "Hodnota", "Dostal sa po", "Odišiel z"].map(
+            {["Kedy", "Zákazník", "Obsah košíka", "Hodnota", "Stav checkoutu", "Posledná stránka"].map(
               (head) => (
                 <th
                   key={head}
@@ -238,6 +239,7 @@ export const SessionTable = ({
                     <div className="flex flex-col items-start gap-y-1">
                       <StagePill stage={session.stage} />
                       <StageDots stage={session.stage} all={[...STAGES]} />
+                      <span className="text-[10.5px] text-ui-fg-muted">{STATUS_LABEL[visitor.status]}</span>
                     </div>
                   </td>
 
