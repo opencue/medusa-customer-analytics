@@ -97,6 +97,25 @@ export type ExitPath = { path: string; count: number }
 export type CheckoutStatus = "active" | "abandoned" | "completed" | "recovered"
 type DashboardVisitor = VisitorGroup & { status: CheckoutStatus }
 type CurrencyTotals = { currency: string; lost_value: number; converted_value: number }
+type ProductItem = SessionRow["items"][number]
+export type ProductBasket = Pick<SessionRow, "currency_code" | "items" | "observed_by" | "stage">
+
+export const checkoutItemKey = (currency: string, item: ProductItem): string =>
+  JSON.stringify([currency, item.sku ?? `title:${item.title}`])
+
+/** One basket's lines per shopper, product and currency; the furthest cart wins. */
+export const abandonedProductBaskets = (
+  visitors: DashboardVisitor[],
+  eligible: (item: ProductItem) => boolean = (item) => !item.is_gift
+): ProductBasket[] => visitors.flatMap((visitor) => {
+  if (visitor.status !== "abandoned") return []
+  const seen = new Set<string>()
+  return visitor.carts.flatMap(({ currency_code, items, observed_by, stage }) => {
+    const unique = items.filter((item) => eligible(item) && !seen.has(checkoutItemKey(currency_code, item)))
+    for (const item of unique) seen.add(checkoutItemKey(currency_code, item))
+    return unique.length ? [{ currency_code, items: unique, observed_by, stage }] : []
+  })
+})
 
 export type DashboardTotals = {
   tracked: number
@@ -232,15 +251,17 @@ const isRecovered = (session: SessionRow): boolean => {
   const completed = Date.parse(session.completed_at ?? "")
   if (!Number.isFinite(completed)) return false
 
-  // An old creation date alone is not evidence of a recovery. Prefer the
-  // latest actual activity before completion; completion can itself update the cart.
-  const beforeCompletion = [
+  // An old creation date alone is not evidence of a recovery. A shopper
+  // can have recorded activity after returning but before completing.
+  const activity = [
     session.updated_at,
     session.last_seen_at,
     ...Object.values(session.stage_at ?? {}),
-  ].map((value) => Date.parse(value ?? "")).filter((at) => at < completed)
-  return beforeCompletion.length > 0 &&
-    completed - Math.max(...beforeCompletion) >= ABANDONMENT_MS
+  ].map((value) => Date.parse(value ?? ""))
+    .filter((at) => at < completed)
+    .sort((a, b) => a - b)
+  activity.push(completed)
+  return activity.some((at, i) => i > 0 && at - activity[i - 1] >= ABANDONMENT_MS)
 }
 
 const visitorStatus = (visitor: VisitorGroup, now: number): CheckoutStatus => {
@@ -344,17 +365,12 @@ export const buildDashboard = ({
   const completed = completedVisitors.map((v) => v.lead)
 
   const products = new Map<string, AbandonedProduct>()
-  for (const session of abandoned) {
+  for (const session of abandonedProductBaskets(visitors)) {
     // Count a product once per cart even if it appears on two lines, so
     // "carts" stays an honest cart count rather than a line count.
     const seen = new Set<string>()
     for (const item of session.items) {
-      // The free gift rides along in every cart over the threshold, so it would
-      // top this ranking in every window while telling the operator nothing —
-      // nobody abandons a checkout over a €0 item they did not pick.
-      if (item.is_gift) continue
-
-      const key = JSON.stringify([session.currency_code, item.sku ?? `title:${item.title}`])
+      const key = checkoutItemKey(session.currency_code, item)
       const row = products.get(key) ?? {
         key,
         title: item.title,

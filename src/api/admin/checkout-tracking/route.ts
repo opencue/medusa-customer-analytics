@@ -11,6 +11,7 @@ import type CheckoutTrackingModuleService from "../../../modules/checkout_tracki
 import {
   ABANDONMENT_MINUTES,
   ORDER_SCAN_CAP,
+  abandonedProductBaskets,
   analyticsWindow,
   buildDashboard,
   isInWindow,
@@ -19,6 +20,7 @@ import {
 import {
   buildSaleCandidates,
   buildSoldUnitsBySku,
+  isSaleProduct,
 } from "../../../modules/checkout_tracking/lib/sale-candidates"
 
 /**
@@ -130,7 +132,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const ordersCapped = orders.length > ORDER_SCAN_CAP
 
   const sale_candidates = capped || ordersCapped ? [] : buildSaleCandidates({
-    sessions: dashboard.visitors.filter((v) => v.status === "abandoned").map((v) => v.lead),
+    sessions: abandonedProductBaskets(dashboard.visitors, isSaleProduct),
     soldUnitsBySku: buildSoldUnitsBySku(
       orders.filter((order) => order.status !== "canceled" && order.status !== "draft")
     ),

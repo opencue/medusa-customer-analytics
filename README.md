@@ -61,8 +61,9 @@ An unfinished shopper is **active** until there has been 60 minutes without
 recorded activity on any of their carts. A completed cart with an observed gap
 of at least 60 minutes before completion is classified as **recovered**. The
 gap uses cart updates and available storefront timestamps, not creation time
-alone. Recovery is a subset of completed checkouts and is not attributed to a
-promotion.
+alone. It can miss returns without observed activity or after the storefront
+data expires. Recovery is a subset of completed checkouts and is not attributed
+to a promotion.
 
 Recommendations default to **investigate**. A pattern is marked high confidence
 only if at least three abandoned shoppers had storefront observations, those
@@ -326,6 +327,8 @@ Sessions are newest-first. `abandoned_products` is capped at 10, `exit_paths` at
 8, `sale_candidates` at 12. Product values are separated by currency. Use
 `totals.by_currency` for `{currency, lost_value, converted_value}` rows; the
 legacy scalar amounts and currency are `null` in a multi-currency window.
+Checkout totals use one lead cart per shopper. Product rankings include all
+distinct products from that shopper's abandoned carts, counted once per currency.
 
 **About the scan flags.** The report uses at most 2,000 carts and 2,000 orders,
 newest first. `capped` and `orders_capped` flag truncated cart and order windows
@@ -539,7 +542,16 @@ pnpm test                         # unit tests, no database needed
 
 The funnel ladder, journey merge, dashboard aggregation, and candidate scoring
 are all pure functions under `src/modules/checkout_tracking/lib/`, which is why
-the test suite runs without a database.
+the unit tests run without a database.
+
+To check promotion totals against Medusa, use a **disposable local Medusa app**
+with this plugin built, installed and migrated. Set a fresh
+`MEDUSA_ANALYTICS_TEST_CODE` (for example `ANALYTICS-TEST-LOCAL1`) and run
+`medusa exec /absolute/path/to/test/fixtures/seed-promotion-report.cjs` in that
+app. Then run `node --test test/promotion-report.integration.test.cjs` in this
+repo with the same code, `MEDUSA_ANALYTICS_TEST_URL` set to the local app URL and
+`MEDUSA_ANALYTICS_TEST_TOKEN` set to a local admin bearer token. Do not run the
+seed against a shared or production database.
 
 ```
 src/

@@ -1,5 +1,5 @@
 /** Rank products by abandonment. The last step suggests what to test, not why someone left. */
-import { toNumber, type SessionRow } from "./dashboard"
+import { checkoutItemKey, toNumber, type ProductBasket } from "./dashboard"
 import { stageIndex, type FunnelStage } from "./stages"
 
 export type OrderRow = {
@@ -101,10 +101,16 @@ const decideAction = (
 }
 
 export type BuildSaleCandidatesInput = {
-  sessions: SessionRow[]
+  sessions: ProductBasket[]
   /** Units sold per SKU in the same window, from completed orders. */
   soldUnitsBySku: Record<string, number>
 }
+
+type ProductItem = ProductBasket["items"][number]
+
+/** No free gifts, surcharges or other lines that cannot be targeted. */
+export const isSaleProduct = (item: ProductItem): item is ProductItem & { product_id: string } =>
+  !item.is_gift && !!item.product_id && item.unit_price > 0
 
 export const buildSaleCandidates = ({
   sessions,
@@ -125,22 +131,9 @@ export const buildSaleCandidates = ({
     const seen = new Set<string>()
 
     for (const item of session.items) {
-      // Skip anything that is not a sellable catalogue line.
-      //
-      // Carts here carry auto-added lines the shopper never chose: a free gift
-      // and the cash-on-delivery surcharge. Both ride along on most abandoned
-      // baskets, so left in they dominate the ranking — and both are nonsense
-      // to discount (15% of a €0 gift is €0; the COD fee is not a product).
-      //
-      // The two tests are structural rather than name matches, so they keep
-      // working when the gift changes or a new fee line is introduced:
-      //   - no product id  → it is a synthetic line, and a promotion cannot
-      //     target it even in principle;
-      //   - no price       → there is nothing for a percentage to act on.
-      if (!item.product_id) continue
-      if (item.unit_price <= 0) continue
+      if (!isSaleProduct(item)) continue
 
-      const key = JSON.stringify([session.currency_code, item.sku ?? `title:${item.title}`])
+      const key = checkoutItemKey(session.currency_code, item)
 
       const draft: Draft = drafts.get(key) ?? {
         key,

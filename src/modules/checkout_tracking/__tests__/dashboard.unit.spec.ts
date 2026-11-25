@@ -119,6 +119,39 @@ describe("buildDashboard — totals", () => {
     expect(out.visitors.find((v) => v.lead.cart_id === "recovered")?.status).toBe("recovered")
   })
 
+  it("recognizes a quiet period even if the shopper is active again before paying", () => {
+    const out = buildDashboard({
+      now: new Date("2026-08-03T12:30:00Z"),
+      carts: [cart({
+        id: "returned",
+        updated_at: "2026-08-03T12:05:00Z",
+        completed_at: "2026-08-03T12:05:00Z",
+      })],
+      journeys: [journey({
+        cart_id: "returned",
+        last_seen_at: "2026-08-03T12:00:00Z",
+        stage_at: { checkout_entered: "2026-08-03T10:00:00Z", review: "2026-08-03T12:00:00Z" },
+      })],
+    })
+    expect(out.visitors[0].status).toBe("recovered")
+  })
+
+  it("keeps distinct products across one shopper's inactive baskets", () => {
+    const base = cart({ id: "old", email: "shopper@example.test" })
+    const out = buildDashboard({
+      now: new Date("2026-08-03T12:00:00Z"),
+      carts: [
+        { ...base, items: [...(base.items ?? []), { title: "Other", variant_sku: "OTHER", quantity: 1, unit_price: 20 }] },
+        cart({ id: "new", email: base.email, updated_at: "2026-08-03T10:10:00Z" }),
+      ],
+      journeys: [],
+    })
+    expect(out.totals.abandoned).toBe(1)
+    expect(out.abandoned_products.map((row) => [row.sku, row.carts, row.value])).toEqual([
+      ["CINKA-20", 1, 100], ["OTHER", 1, 20],
+    ])
+  })
+
   const mixed = () =>
     buildDashboard({
       carts: [

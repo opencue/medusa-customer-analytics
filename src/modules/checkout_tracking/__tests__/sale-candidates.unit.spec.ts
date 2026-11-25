@@ -1,5 +1,5 @@
-import { buildSaleCandidates, MIN_ABANDONED_CARTS } from "../lib/sale-candidates"
-import type { SessionRow } from "../lib/dashboard"
+import { buildSaleCandidates, isSaleProduct, MIN_ABANDONED_CARTS } from "../lib/sale-candidates"
+import { abandonedProductBaskets, type SessionRow } from "../lib/dashboard"
 import type { FunnelStage } from "../lib/stages"
 
 let seq = 0
@@ -49,6 +49,23 @@ const carts = (n: number, stage: FunnelStage = "cart", over = {}) =>
   Array.from({ length: n }, () => session(stage, over))
 
 describe("buildSaleCandidates — what gets on the list", () => {
+  it("counts non-lead baskets without counting one shopper twice for the same product", () => {
+    const lead = session("delivery", { items: [item({ sku: "OTHER" })] })
+    const earlier = session("cart")
+    const visitor = {
+      key: "shopper-1", matched_by: "email" as const, status: "abandoned" as const,
+      lead, carts: [lead, earlier, session("cart")], cart_count: 3,
+    }
+    const second = session("cart")
+    const sessions = abandonedProductBaskets([
+      visitor,
+      { ...visitor, key: "shopper-2", lead: second, carts: [second], cart_count: 1 },
+    ], isSaleProduct)
+    const rows = buildSaleCandidates({ sessions, soldUnitsBySku: {} })
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ sku: "CINKA-20", abandoned_carts: 2, stranded_value: 200 })
+  })
+
   it("ranks a never-sold product by how many carts it blocked", () => {
     const rows = buildSaleCandidates({
       sessions: carts(4),
