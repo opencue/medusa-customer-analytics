@@ -15,7 +15,7 @@ import {
   type FunnelRow,
   type FunnelStage,
 } from "./stages"
-import type { JourneyRow } from "./journey"
+import { ABANDONMENT_MS, type JourneyRow } from "./journey"
 import { activityAt, groupSessionsByVisitor, type VisitorGroup } from "./visitors"
 
 export type CartItemRow = {
@@ -100,8 +100,11 @@ type CurrencyTotals = { currency: string; lost_value: number; converted_value: n
 type ProductItem = SessionRow["items"][number]
 export type ProductBasket = Pick<SessionRow, "currency_code" | "items" | "observed_by" | "stage">
 
-export const checkoutItemKey = (currency: string, item: ProductItem): string =>
-  JSON.stringify([currency, item.sku ?? `title:${item.title}`])
+export const checkoutItemKey = (currency: string, item: ProductItem): string => {
+  if (item.sku) return JSON.stringify([currency, "sku", item.sku])
+  if (item.product_id) return JSON.stringify([currency, "product", item.product_id])
+  return JSON.stringify([currency, "title", item.title])
+}
 
 /** One basket's lines per shopper, product and currency; the furthest cart wins. */
 export const abandonedProductBaskets = (
@@ -149,8 +152,6 @@ export type Dashboard = {
 
 const TOP_PRODUCTS = 10
 const TOP_EXIT_PATHS = 8
-export const ABANDONMENT_MINUTES = 60
-const ABANDONMENT_MS = ABANDONMENT_MINUTES * 60_000
 export const ORDER_SCAN_CAP = 2000
 
 export const analyticsWindow = (rawDays: unknown, now = new Date()) => {
@@ -247,26 +248,29 @@ const cartValue = (cart: CartRow, items: Array<{
   return items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
 }
 
-const isRecovered = (session: SessionRow): boolean => {
+const isRecovered = (session: SessionRow, journey: JourneyRow | undefined): boolean => {
   const completed = Date.parse(session.completed_at ?? "")
   if (!Number.isFinite(completed)) return false
 
-  // An old creation date alone is not evidence of a recovery. A shopper
-  // can have recorded activity after returning but before completing.
-  const activity = [
-    session.updated_at,
-    session.last_seen_at,
-    ...Object.values(session.stage_at ?? {}),
-  ].map((value) => Date.parse(value ?? ""))
-    .filter((at) => at < completed)
-    .sort((a, b) => a - b)
-  activity.push(completed)
-  return activity.some((at, i) => i > 0 && at - activity[i - 1] >= ABANDONMENT_MS)
+  if (Date.parse(iso(journey?.returned_at) ?? "") <= completed) return true
+
+  // The first visit to each stage doesn't tell us when the shopper was last
+  // active. Only the most recent recorded activity can anchor a gap here.
+  const seen = Date.parse(session.last_seen_at ?? "")
+  if (seen >= completed) return false
+  const updated = Date.parse(session.updated_at ?? "")
+  const lastActivity = [seen, updated].filter((at) => at < completed)
+  return lastActivity.length > 0 && completed - Math.max(...lastActivity) >= ABANDONMENT_MS
 }
 
-const visitorStatus = (visitor: VisitorGroup, now: number): CheckoutStatus => {
+const visitorStatus = (
+  visitor: VisitorGroup,
+  now: number,
+  journeys: Map<string, JourneyRow>
+): CheckoutStatus => {
   if (visitor.lead.stage === "completed") {
-    return visitor.carts.some(isRecovered) ? "recovered" : "completed"
+    return visitor.carts.some((cart) => isRecovered(cart, journeys.get(cart.cart_id)))
+      ? "recovered" : "completed"
   }
   return visitor.carts.some((cart) => {
     const at = activityAt(cart)
@@ -356,7 +360,7 @@ export const buildDashboard = ({
   // divided the conversion rate by the duplicates.
   const visitors = groupSessionsByVisitor(sessions, { repeatWindowMs }).map((v) => ({
     ...v,
-    status: visitorStatus(v, now.getTime()),
+    status: visitorStatus(v, now.getTime(), byCart),
   }))
   const abandonedVisitors = visitors.filter((v) => v.status === "abandoned")
   const activeVisitors = visitors.filter((v) => v.status === "active")

@@ -276,16 +276,18 @@ describe("buildSaleCandidates — edges", () => {
     expect(buildSaleCandidates({ sessions: [], soldUnitsBySku: {} })).toEqual([])
   })
 
-  it("groups a product with no SKU by title instead of merging them all", () => {
+  it("groups by product ID when SKU is missing, even if two titles match", () => {
+    const withoutSku = (product_id: string) => item({ sku: null, product_id, title: "Bez SKU" })
     const rows = buildSaleCandidates({
       sessions: [
-        session("cart", { items: [item({ sku: null, title: "Bez SKU A" })] }),
-        session("cart", { items: [item({ sku: null, title: "Bez SKU A" })] }),
-        session("cart", { items: [item({ sku: null, title: "Bez SKU B" })] }),
-        session("cart", { items: [item({ sku: null, title: "Bez SKU B" })] }),
+        session("cart", { items: [withoutSku("prod_a")] }),
+        session("cart", { items: [withoutSku("prod_a")] }),
+        session("cart", { items: [withoutSku("prod_b")] }),
+        session("cart", { items: [withoutSku("prod_b")] }),
       ],
       soldUnitsBySku: {},
     })
-    expect(rows.map((r) => r.title).sort()).toEqual(["Bez SKU A", "Bez SKU B"])
+    expect(rows.map((r) => r.product_id).sort()).toEqual(["prod_a", "prod_b"])
+    expect(rows.map((r) => r.abandoned_carts)).toEqual([2, 2])
   })
 })

@@ -7,6 +7,9 @@
  */
 import { isFunnelStage, maxStage, type FunnelStage } from "./stages"
 
+export const ABANDONMENT_MINUTES = 60
+export const ABANDONMENT_MS = ABANDONMENT_MINUTES * 60_000
+
 export type TrackInput = {
   cart_id: string
   stage: string
@@ -25,6 +28,7 @@ export type JourneyRow = {
   stage_at: Record<string, string> | null
   first_seen_at: Date | string
   last_seen_at: Date | string
+  returned_at?: Date | string | null
 }
 
 export type JourneyPatch = {
@@ -36,6 +40,7 @@ export type JourneyPatch = {
   stage_at: Record<string, string>
   first_seen_at: Date
   last_seen_at: Date
+  returned_at?: Date
 }
 
 const DEVICES = ["mobile", "tablet", "desktop"] as const
@@ -136,6 +141,8 @@ export const nextJourneyState = (
   const path = normalizePath(input.path)
   const locale = normalizeLocale(input.locale)
   const device = normalizeDevice(input.device)
+  const returned = existing && !existing.returned_at &&
+    now.getTime() - asDate(existing.last_seen_at, now).getTime() >= ABANDONMENT_MS
 
   return {
     cart_id: input.cart_id,
@@ -148,5 +155,7 @@ export const nextJourneyState = (
     stage_at: stageAt,
     first_seen_at: asDate(existing?.first_seen_at, now),
     last_seen_at: now,
+    // Only write the first observed return; regular beacons don't clear it.
+    ...(returned ? { returned_at: now } : {}),
   }
 }

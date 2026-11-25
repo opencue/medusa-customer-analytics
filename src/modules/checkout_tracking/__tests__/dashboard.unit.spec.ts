@@ -130,10 +130,41 @@ describe("buildDashboard — totals", () => {
       journeys: [journey({
         cart_id: "returned",
         last_seen_at: "2026-08-03T12:00:00Z",
-        stage_at: { checkout_entered: "2026-08-03T10:00:00Z", review: "2026-08-03T12:00:00Z" },
+        returned_at: "2026-08-03T11:50:00Z",
       })],
     })
     expect(out.visitors[0].status).toBe("recovered")
+  })
+
+  it("does not infer a quiet period from first-stage timestamps", () => {
+    const out = buildDashboard({
+      carts: [cart({
+        id: "continuous",
+        updated_at: "2026-08-03T12:05:00Z",
+        completed_at: "2026-08-03T12:05:00Z",
+      })],
+      journeys: [journey({
+        cart_id: "continuous",
+        last_seen_at: "2026-08-03T12:00:00Z",
+        stage_at: { checkout_entered: "2026-08-03T10:00:00Z" },
+      })],
+    })
+    expect(out.visitors[0].status).toBe("completed")
+  })
+
+  it("does not merge different SKU-less products with the same title", () => {
+    const out = buildDashboard({
+      now: new Date("2026-08-03T12:00:00Z"),
+      carts: ["prod_first", "prod_second"].map((id, i) => cart({
+        id,
+        email: "shopper@example.test",
+        items: [{ product_id: id, product_title: "Same name", quantity: 1, unit_price: 20 + i }],
+      })),
+      journeys: [],
+    })
+    expect(out.totals.abandoned).toBe(1)
+    expect(out.abandoned_products.map((p) => [p.carts, p.value])).toEqual([[1, 21], [1, 20]])
+    expect(new Set(out.abandoned_products.map((p) => p.key)).size).toBe(2)
   })
 
   it("keeps distinct products across one shopper's inactive baskets", () => {

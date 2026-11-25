@@ -60,10 +60,11 @@ From that ladder the plugin produces these views in the Medusa Admin:
 An unfinished shopper is **active** until there has been 60 minutes without
 recorded activity on any of their carts. A completed cart with an observed gap
 of at least 60 minutes before completion is classified as **recovered**. The
-gap uses cart updates and available storefront timestamps, not creation time
-alone. It can miss returns without observed activity or after the storefront
-data expires. Recovery is a subset of completed checkouts and is not attributed
-to a promotion.
+gap is either recorded when a beacon arrives at least 60 minutes after the
+previous beacon or measured from the latest recorded activity to completion.
+First-stage timestamps and cart creation alone don't establish a gap. It can
+miss returns without observed activity or after storefront data expires.
+Recovery is a subset of completed checkouts and is not attributed to a promotion.
 
 Recommendations default to **investigate**. A pattern is marked high confidence
 only if at least three abandoned shoppers had storefront observations, those

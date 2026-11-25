@@ -101,6 +101,22 @@ describe("nextJourneyState", () => {
     expect(patch?.stage).toBe("review")
   })
 
+  it("records a return after an hour since the previous beacon", () => {
+    const patch = nextJourneyState(row(), { cart_id: "cart_1", stage: "cart" }, NOW)
+    expect(patch).toMatchObject({ returned_at: NOW })
+  })
+
+  it("does not mark a return after a recent beacon on the same stage", () => {
+    const previous = row({ last_seen_at: new Date(NOW.getTime() - 60_000) })
+    expect(nextJourneyState(previous, { cart_id: "cart_1", stage: "cart" }, NOW))
+      .not.toHaveProperty("returned_at")
+  })
+
+  it("does not replace the first return timestamp on a later return", () => {
+    expect(nextJourneyState(row({ returned_at: EARLIER }), { cart_id: "cart_1", stage: "cart" }, NOW))
+      .not.toHaveProperty("returned_at")
+  })
+
   it("advances the stage when the beacon is genuinely further", () => {
     const patch = nextJourneyState(
       row({ stage: "cart" }),

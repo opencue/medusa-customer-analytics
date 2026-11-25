@@ -8,8 +8,8 @@ import {
   resolveRepeatWindowMs,
 } from "../../../modules/checkout_tracking/lib/visitors"
 import type CheckoutTrackingModuleService from "../../../modules/checkout_tracking/service"
+import { ABANDONMENT_MINUTES } from "../../../modules/checkout_tracking/lib/journey"
 import {
-  ABANDONMENT_MINUTES,
   ORDER_SCAN_CAP,
   abandonedProductBaskets,
   analyticsWindow,
