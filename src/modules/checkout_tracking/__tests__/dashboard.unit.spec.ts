@@ -85,6 +85,40 @@ describe("buildDashboard — merging the two observers", () => {
 })
 
 describe("buildDashboard — totals", () => {
+  it("excludes active carts from abandonment and keeps currencies separate", () => {
+    const out = buildDashboard({
+      now: new Date("2026-08-03T12:00:00Z"),
+      carts: [
+        cart({ id: "old-eur" }),
+        cart({ id: "old-huf", currency_code: "huf", total: 12000 }),
+        cart({ id: "in-progress" }),
+      ],
+      journeys: [journey({ cart_id: "in-progress", last_seen_at: "2026-08-03T11:55:00Z" })],
+    })
+
+    expect(out.totals).toMatchObject({ active: 1, abandoned: 2, lost_value: null })
+    expect(out.totals.by_currency).toEqual([
+      { currency: "eur", lost_value: 100, converted_value: 0 },
+      { currency: "huf", lost_value: 12000, converted_value: 0 },
+    ])
+    expect(out.funnel.find((row) => row.stage === "checkout_entered")?.dropped).toBe(0)
+    expect(out.abandoned_products.map((row) => row.currency)).toEqual(["eur", "huf"])
+  })
+
+  it("recognizes a later completion after an observed quiet period", () => {
+    const out = buildDashboard({
+      now: new Date("2026-08-03T12:00:00Z"),
+      carts: [
+        cart({ id: "recovered", updated_at: "2026-08-03T11:35:00Z",
+          completed_at: "2026-08-03T11:35:00Z" }),
+        cart({ id: "normal", completed_at: "2026-08-03T10:10:00Z" }),
+      ],
+      journeys: [journey({ cart_id: "recovered", last_seen_at: "2026-08-03T10:11:00Z" })],
+    })
+    expect(out.totals).toMatchObject({ completed: 2, recovered: 1, abandoned: 0 })
+    expect(out.visitors.find((v) => v.lead.cart_id === "recovered")?.status).toBe("recovered")
+  })
+
   const mixed = () =>
     buildDashboard({
       carts: [

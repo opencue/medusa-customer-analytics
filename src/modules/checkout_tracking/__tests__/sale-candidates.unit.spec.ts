@@ -225,8 +225,18 @@ describe("buildSaleCandidates — which lever it recommends", () => {
       soldUnitsBySku: {},
     })
     expect(rows[0].observed_sessions).toBe(0)
-    expect(rows[0].action).toBe("discount")
+    expect(rows[0].action).toBe("investigate")
     expect(rows[0].action_confidence).toBe("low")
+  })
+
+  it("does not let a single observed cart speak for the unobserved majority", () => {
+    const rows = buildSaleCandidates({
+      sessions: [...carts(1, "delivery", observed), ...carts(5)],
+      soldUnitsBySku: {},
+    })
+    expect(rows[0]).toMatchObject({
+      action: "investigate", observed_sessions: 1, observed_coverage: 1 / 6,
+    })
   })
 
   it("reports the step mix most common first", () => {

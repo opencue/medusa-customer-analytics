@@ -9,6 +9,7 @@ import { Funnel } from "./funnel"
 import { AbandonedProducts, ExitPaths } from "./side-cards"
 import { SaleRecommendations } from "./sale-recommendations"
 import { SessionTable } from "./session-table"
+import { WinBack } from "./win-back"
 import { formatMoney, formatPercent } from "./format"
 import { STAGE_LABEL, type Stage, type TrackerResponse } from "./types"
 
@@ -151,6 +152,7 @@ const CheckoutTrackerPage = () => {
   const [days, setDays] = useState<RangeDays>(7)
   const [stageFilter, setStageFilter] = useState<Stage | null>(null)
   const [onlyContactable, setOnlyContactable] = useState(false)
+  const [promotionCode, setPromotionCode] = useState("")
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["checkout-tracking", days],
@@ -180,7 +182,7 @@ const CheckoutTrackerPage = () => {
     () =>
       data
         ? data.visitors.filter(
-            (v) => v.lead.email && v.lead.stage !== "completed"
+            (v) => v.lead.email && v.status === "abandoned"
           ).length
         : 0,
     [data]
@@ -235,9 +237,9 @@ const CheckoutTrackerPage = () => {
               hint={`${data.totals.with_storefront_data} so stránkovými dátami`}
             />
             <KpiCard
-              label="Dokončené objednávky"
+              label="Dokončené checkouty"
               value={String(data.totals.completed)}
-              hint={`Konverzia ${formatPercent(data.totals.conversion_rate)}`}
+              hint={`Konverzia ${formatPercent(data.totals.conversion_rate)} · ${data.totals.recovered} po návrate`}
               tone="good"
             />
             <KpiCard
@@ -247,19 +249,29 @@ const CheckoutTrackerPage = () => {
               tone="bad"
             />
             <KpiCard
-              label="Stratená hodnota"
-              value={formatMoney(data.totals.lost_value, data.totals.currency)}
-              hint={`Dokončené: ${formatMoney(
-                data.totals.converted_value,
-                data.totals.currency
-              )}`}
-              tone="bad"
+              label="Rozpracované košíky"
+              value={String(data.totals.active)}
+              hint={`Opustené po ${data.abandonment_minutes} min bez zaznamenanej aktivity`}
             />
           </div>
 
+          {data.totals.by_currency.length ? (
+            <Card title="Hodnota košíkov podľa meny" sub="Hodnota košíkov, nie vykázaná tržba">
+              <ul className="mt-2 space-y-1 text-xs">
+                {data.totals.by_currency.map((row) => (
+                  <li key={row.currency}>
+                    <strong>{row.currency.toUpperCase()}</strong> · Opustené:{" "}
+                    {formatMoney(row.lost_value, row.currency)} · Dokončené:{" "}
+                    {formatMoney(row.converted_value, row.currency)}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ) : null}
+
           <Card
             title="Lievik checkoutu"
-            sub="Kliknutím na krok vyfiltrujete zákazníkov, ktorí skončili práve tam"
+            sub="Kliknutím vyfiltrujete zákazníkov podľa posledného dosiahnutého kroku"
             action={
               stageFilter ? (
                 <button
@@ -280,13 +292,18 @@ const CheckoutTrackerPage = () => {
           </Card>
 
           <Card
-            title="Čo dať do akcie"
+            title="Čo preveriť pri opustených košíkoch"
             sub="Najviac pridávané do košíka a ani raz nepredané za zvolené obdobie"
           >
-            <SaleRecommendations
-              rows={data.sale_candidates}
-              currency={data.totals.currency}
-            />
+            {data.scan.capped || data.scan.orders_capped ? (
+              <Notice>Neúplné údaje. Pre odporúčania vyberte kratšie obdobie.</Notice>
+            ) : (
+              <SaleRecommendations key={days} rows={data.sale_candidates} onCreated={setPromotionCode} />
+            )}
+          </Card>
+
+          <Card title="Výsledky win-back akcií" sub="Objednávky a zľavy podľa kódu vo zvolenom období">
+            <WinBack days={days} code={promotionCode} onCodeChange={setPromotionCode} />
           </Card>
 
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -300,10 +317,7 @@ const CheckoutTrackerPage = () => {
               title="Najčastejšie opustené produkty"
               sub="Zoradené podľa počtu košíkov, v ktorých uviazli"
             >
-              <AbandonedProducts
-                rows={data.abandoned_products}
-                currency={data.totals.currency}
-              />
+              <AbandonedProducts rows={data.abandoned_products} />
             </Card>
           </div>
 
@@ -311,7 +325,7 @@ const CheckoutTrackerPage = () => {
             title="Zákazníci"
             sub={
               stageFilter
-                ? `Skončili na kroku „${STAGE_LABEL[stageFilter]}“ · ${visitors.length}`
+                ? `Posledný krok „${STAGE_LABEL[stageFilter]}“ · ${visitors.length}`
                 : `Všetky sledované košíky · ${visitors.length}`
             }
             action={

@@ -9,7 +9,11 @@ import {
 } from "../../../modules/checkout_tracking/lib/visitors"
 import type CheckoutTrackingModuleService from "../../../modules/checkout_tracking/service"
 import {
+  ABANDONMENT_MINUTES,
+  ORDER_SCAN_CAP,
+  analyticsWindow,
   buildDashboard,
+  isInWindow,
   type CartRow,
 } from "../../../modules/checkout_tracking/lib/dashboard"
 import {
@@ -29,9 +33,6 @@ import {
  *   days   window, 1-90 (default 7)
  */
 
-const DEFAULT_DAYS = 7
-const MAX_DAYS = 90
-
 /**
  * Hard ceiling on carts examined per request. This is a CAP, not paging —
  * every cart lands in memory at once so the whole window can be aggregated in
@@ -43,14 +44,6 @@ const MAX_DAYS = 90
  * it is not.
  */
 const CART_SCAN_CAP = 2000
-
-/**
- * Same ceiling for the orders side. A shop always has far fewer orders than
- * carts, so this reaches much further back in time than the cart scan does —
- * which is the safe direction: under-counting sales would wrongly promote a
- * product onto the "never purchased" list.
- */
-const ORDER_SCAN_CAP = 2000
 
 const CART_FIELDS = [
   "id",
@@ -78,18 +71,9 @@ const CART_FIELDS = [
   "payment_collection.payment_sessions.id",
 ]
 
-const parseDays = (raw: string | undefined): number => {
-  const parsed = parseInt(raw ?? "", 10)
-  if (!Number.isFinite(parsed)) return DEFAULT_DAYS
-  return Math.min(Math.max(parsed, 1), MAX_DAYS)
-}
-
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
-  const q = req.query as Record<string, string | undefined>
-  const days = parseDays(q.days)
-
-  const now = new Date()
-  const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+  const range = analyticsWindow(req.query.days)
+  const { days, since, now } = range
 
   const query = req.scope.resolve<Query>(ContainerRegistrationKeys.QUERY)
 
@@ -106,30 +90,15 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     entity: "cart",
     fields: CART_FIELDS,
     pagination: {
-      take: CART_SCAN_CAP,
+      take: CART_SCAN_CAP + 1,
       skip: 0,
       order: { created_at: "DESC" },
     },
   })
 
-  const scanned = (data ?? []) as CartRow[]
-  const createdAt = (cart: CartRow): Date | null => {
-    const value = cart.created_at ? new Date(cart.created_at) : null
-    return value && !Number.isNaN(value.getTime()) ? value : null
-  }
-
-  const carts = scanned.filter((cart) => {
-    const created = createdAt(cart)
-    return !!created && created >= since
-  })
-
-  // The window is only truncated when the scan filled up AND its oldest row is
-  // still inside the window — that is the case where older carts from the same
-  // window exist but were never fetched. If the scan reached back past `since`,
-  // coverage is complete however many rows it took.
-  const oldestScanned = createdAt(scanned[scanned.length - 1] ?? ({} as CartRow))
-  const capped =
-    scanned.length >= CART_SCAN_CAP && !!oldestScanned && oldestScanned >= since
+  const scanned = ((data ?? []) as CartRow[]).filter((cart) => isInWindow(cart.created_at, range))
+  const carts = scanned.slice(0, CART_SCAN_CAP)
+  const capped = scanned.length > CART_SCAN_CAP
 
   const service = req.scope.resolve<CheckoutTrackingModuleService>(
     CHECKOUT_TRACKING_MODULE
@@ -139,6 +108,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const dashboard = buildDashboard({
     carts,
     journeys,
+    now,
     // How long after one anonymous cart an identical one still reads as the
     // same shopper retrying. Per-shop, because the right answer depends on the
     // catalogue rather than on this code.
@@ -150,26 +120,27 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   // carts — query.graph ignores a created_at filter here too.
   const { data: orderData } = await query.graph({
     entity: "order",
-    fields: ["id", "created_at", "items.variant_sku", "items.quantity"],
+    fields: ["id", "created_at", "status", "items.variant_sku", "items.quantity"],
     pagination: {
-      take: ORDER_SCAN_CAP,
+      take: ORDER_SCAN_CAP + 1,
       skip: 0,
       order: { created_at: "DESC" },
     },
   })
 
-  const orders = ((orderData ?? []) as OrderRow[]).filter((order) => {
-    const created = order.created_at ? new Date(order.created_at) : null
-    return !!created && !Number.isNaN(created.getTime()) && created >= since
-  })
+  const orders = ((orderData ?? []) as OrderRow[]).filter((order) => isInWindow(order.created_at, range))
+  const ordersCapped = orders.length > ORDER_SCAN_CAP
 
-  const sale_candidates = buildSaleCandidates({
-    sessions: dashboard.sessions,
-    soldUnitsBySku: buildSoldUnitsBySku(orders),
+  const sale_candidates = capped || ordersCapped ? [] : buildSaleCandidates({
+    sessions: dashboard.visitors.filter((v) => v.status === "abandoned").map((v) => v.lead),
+    soldUnitsBySku: buildSoldUnitsBySku(
+      orders.filter((order) => order.status !== "canceled" && order.status !== "draft")
+    ),
   })
 
   res.json({
     range: { days, since: since.toISOString(), now: now.toISOString() },
+    abandonment_minutes: ABANDONMENT_MINUTES,
     ...dashboard,
     sale_candidates,
     scan: {
@@ -178,6 +149,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       carts: carts.length,
       cap: CART_SCAN_CAP,
       capped,
+      orders_capped: ordersCapped,
     },
   })
 }

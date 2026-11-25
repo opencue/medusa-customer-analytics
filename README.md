@@ -7,7 +7,6 @@ storefront: **how far did each shopper get, and where did they stop?**
 [![downloads](https://img.shields.io/npm/dm/medusa-customer-analytics?color=0b7285&label=downloads%2Fmonth)](https://www.npmjs.com/package/medusa-customer-analytics)
 [![Medusa](https://img.shields.io/badge/Medusa-v2-8b5cf6)](https://docs.medusajs.com/)
 [![license](https://img.shields.io/npm/l/medusa-customer-analytics?color=444)](./LICENSE)
-[![tests](https://img.shields.io/badge/tests-73%20passing-3dd68c)](#development)
 
 `medusa-customer-analytics` is a **third-party, community-maintained,
 open-source (MIT) plugin for [Medusa v2](https://medusajs.com)**. It adds a
@@ -48,27 +47,31 @@ A shopper's progress through checkout is measured on a single seven-rung ladder:
 cart → checkout_entered → address → delivery → payment → review → completed
 ```
 
-From that ladder the plugin produces four things in the Medusa Admin:
+From that ladder the plugin produces these views in the Medusa Admin:
 
 | Output | What it answers |
 |---|---|
-| **Funnel** | How many sessions reached each rung, and what share dropped there |
-| **Session table** | Which individual shoppers stopped where — e-mail, cart value, device, and the last page they saw |
+| **Funnel** | How many shoppers reached each rung, and how many abandoned there, excluding active checkouts |
+| **Session table** | Where each shopper got to, plus active, abandoned, completed, or completed after a return |
 | **Abandoned products** | Which products keep getting added to carts that never convert |
-| **Sale recommendations** | Which of those products to act on, and *with which lever* — discount, free shipping, or "go look at your payment step" |
+| **Checkout diagnostics** | Where to investigate, with the sample size and storefront observation coverage |
+| **Win-back results** | Orders, discounts and order value for a promotion code, by currency |
 
-The last one is the opinionated part. Abandonment is driven by shipping cost and
-payment friction at least as much as by price, so the plugin picks the lever from
-the rung the shopper actually stopped on:
+An unfinished shopper is **active** until there has been 60 minutes without
+recorded activity on any of their carts. A completed cart with an observed gap
+of at least 60 minutes before completion is classified as **recovered**. The
+gap uses cart updates and available storefront timestamps, not creation time
+alone. Recovery is a subset of completed checkouts and is not attributed to a
+promotion.
 
-| Shopper stopped at | Inferred objection | Recommended action |
-|---|---|---|
-| `cart` / `checkout_entered` | Formed before any shipping or payment detail was shown → the product itself | **Discount** |
-| `delivery` | Product price accepted, shipping cost not | **Free shipping** |
-| `payment` | Price *and* shipping accepted → friction, not cost | **Investigate** — no discount |
-
-Every recommendation carries an `action_confidence` of `low` or `high`, because
-that split only works for shoppers whose storefront data was collected.
+Recommendations default to **investigate**. A pattern is marked high confidence
+only if at least three abandoned shoppers had storefront observations, those
+observations cover at least half the sample, and a strict majority of the
+observed shoppers stopped in the same group of steps. Stopping early suggests
+checking the product and possibly testing a discount; stopping at delivery
+suggests checking shipping options and costs; stopping at payment suggests
+checking payment friction. These are hypotheses, not causes. No products are
+selected for a promotion automatically.
 
 ---
 
@@ -84,14 +87,14 @@ that split only works for shoppers whose storefront data was collected.
 | **Module name** | `checkout_tracking` |
 | **Database table** | `checkout_journey` — one row per cart, page-level data only |
 | **Admin route** | `/app/checkout-tracker`, labelled "Checkout tracker" |
-| **Admin API** | `GET /admin/checkout-tracking`, `POST /admin/checkout-tracking/promotions` |
+| **Admin API** | `GET /admin/checkout-tracking`, `GET` and `POST /admin/checkout-tracking/promotions` |
 | **Store API** | `POST /store/checkout-tracking` (the beacon) |
 | **Scheduled job** | `checkout-tracking-retention`, hourly at `:30` |
 | **Retention** | 72 hours from `last_seen_at`, hard delete |
 | **Plugin options** | None — the plugin reads no configuration |
 | **Third-party services** | None. No external analytics vendor, no outbound requests |
 | **New identifiers** | None. Keyed on the Medusa `cart_id` that already exists |
-| **Tests** | 73 unit tests, no database required |
+| **Tests** | Unit tests, no database required |
 
 ---
 
@@ -284,13 +287,15 @@ Everything the dashboard shows, in one authenticated call.
 ```jsonc
 {
   "range":   { "days": 7, "since": "2026-…Z", "now": "2026-…Z" },
+  "abandonment_minutes": 60,
   "funnel":  [{ "stage": "cart", "reached": 0, "dropped": 0, "drop_rate": 0, "reach_rate": 0 }],
   "totals":  {
-    "tracked": 0, "completed": 0, "abandoned": 0,
+    "tracked": 0, "completed": 0, "active": 0, "abandoned": 0, "recovered": 0,
     "conversion_rate": 0, "lost_value": 0, "converted_value": 0,
-    "currency": "eur",
+    "currency": "eur", "by_currency": [],
     "with_storefront_data": 0    // sessions the beacon also saw
   },
+  "visitors": [], // grouped shoppers, each with a status, lead cart and all grouped carts
   "sessions": [{
     "cart_id": "cart_…", "email": null, "customer_id": null,
     "stage": "payment", "observed_by": "both",
@@ -303,28 +308,43 @@ Everything the dashboard shows, in one authenticated call.
     "stage_at": { "cart": "2026-…Z" }   // first time each rung was reached
   }],
   "abandoned_products": [{ "key": "…", "title": "…", "sku": null,
-                           "thumbnail": null, "carts": 0, "units": 0, "value": 0 }],
+                           "thumbnail": null, "carts": 0, "units": 0, "value": 0, "currency": "eur" }],
   "exit_paths":      [{ "path": "/checkout", "count": 0 }],
   "sale_candidates": [{
     "key": "…", "title": "…", "sku": null, "thumbnail": null,
     "product_id": "prod_…", "abandoned_carts": 0, "units": 0,
-    "stranded_value": 0, "sold_units": 0,
+    "stranded_value": 0, "currency": "eur", "sold_units": 0,
     "stage_mix": [{ "stage": "delivery", "carts": 0 }],
-    "action": "free_shipping", "action_confidence": "high",
-    "observed_sessions": 0
+    "action": "investigate", "action_confidence": "low",
+    "observed_sessions": 0, "observed_coverage": 0
   }],
-  "scan": { "carts": 0, "cap": 2000, "capped": false }
+  "scan": { "carts": 0, "cap": 2000, "capped": false, "orders_capped": false }
 }
 ```
 
 Sessions are newest-first. `abandoned_products` is capped at 10, `exit_paths` at
-8, `sale_candidates` at 12.
+8, `sale_candidates` at 12. Product values are separated by currency. Use
+`totals.by_currency` for `{currency, lost_value, converted_value}` rows; the
+legacy scalar amounts and currency are `null` in a multi-currency window.
 
-**About `scan.capped`.** At most 2000 carts and 2000 orders are examined per
-request, fetched newest-first. When `capped` is `true` the *oldest* end of your
-window was truncated — the numbers describe part of the window, not all of it.
-That is reported rather than hidden, because a silently truncated funnel reads
-as "this is your whole shop" when it is not.
+**About the scan flags.** The report uses at most 2,000 carts and 2,000 orders,
+newest first. `capped` and `orders_capped` flag truncated cart and order windows
+respectively. Recommendations are omitted if either scan is incomplete.
+
+### `GET /admin/checkout-tracking/promotions?code=AKCIA-…&days=7`
+
+Looks up an exact promotion code in the selected order creation window. The Admin
+fills in the code when it creates a draft; you can also look up an existing code.
+Counts each non-canceled, non-draft order with a positive matching adjustment
+once. Only the selected code's item and shipping adjustments contribute to
+`discount_value`; stacked promotions are not included in that amount.
+
+Returns `{ code, orders, by_currency, scan }`. Currency rows carry
+`currency`, `orders`, `discount_value` and `order_value_ex_tax`. Order value is
+the Medusa order total minus tax, after discounts and before refunds; it is not
+cash collected, incremental revenue, or a claim about what would have happened
+without the promotion. When `scan.capped` is true, results cover only the newest
+2,000 orders; use a shorter window.
 
 ### `POST /admin/checkout-tracking/promotions`
 
@@ -336,7 +356,7 @@ Creates a percentage promotion targeting the products the tracker flagged.
 |---|---|---|---|
 | `product_ids` | `string[]` | yes | Deduplicated, capped at 50. Empty → `400` |
 | `percentage` | number | yes | `1`–`90`. Out of range is **refused, not clamped** |
-| `code` | string | no | Uppercased, max 40 chars. Defaults to `AKCIA-XXXXXX` |
+| `code` | string | no | Uppercased, max 40 chars. Defaults to a random `AKCIA-` code |
 | `currency_code` | string | no | Defaults to `eur` |
 
 **The promotion is always created as a `draft`, never active**, and never
@@ -514,7 +534,7 @@ Medusa v2, pinned to `2.13.4` as a peer dependency.
 ```bash
 pnpm install --ignore-workspace   # a parent workspace lockfile would be picked up otherwise
 pnpm build                        # medusa plugin:build
-pnpm test                         # 73 unit tests, no database needed
+pnpm test                         # unit tests, no database needed
 ```
 
 The funnel ladder, journey merge, dashboard aggregation, and candidate scoring

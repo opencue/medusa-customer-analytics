@@ -16,7 +16,7 @@ import {
   type FunnelStage,
 } from "./stages"
 import type { JourneyRow } from "./journey"
-import { groupSessionsByVisitor, type VisitorGroup } from "./visitors"
+import { activityAt, groupSessionsByVisitor, type VisitorGroup } from "./visitors"
 
 export type CartItemRow = {
   id?: string | null
@@ -89,19 +89,28 @@ export type AbandonedProduct = {
   units: number
   /** Line value stranded in those carts. */
   value: number
+  currency: string
 }
 
 export type ExitPath = { path: string; count: number }
 
+export type CheckoutStatus = "active" | "abandoned" | "completed" | "recovered"
+type DashboardVisitor = VisitorGroup & { status: CheckoutStatus }
+type CurrencyTotals = { currency: string; lost_value: number; converted_value: number }
+
 export type DashboardTotals = {
   tracked: number
   completed: number
+  active: number
   abandoned: number
+  /** Subset of completed. */
+  recovered: number
   conversion_rate: number
-  /** Cart value that did NOT convert — the size of the problem, in currency. */
-  lost_value: number
-  converted_value: number
-  currency: string
+  /** Legacy scalars are null rather than mixing currencies. */
+  lost_value: number | null
+  converted_value: number | null
+  currency: string | null
+  by_currency: CurrencyTotals[]
   /** Journeys the storefront beacon contributed to (i.e. consented visitors). */
   with_storefront_data: number
   /** Carts folded into an earlier visitor by the grouping rules. */
@@ -112,7 +121,7 @@ export type Dashboard = {
   funnel: FunnelRow[]
   totals: DashboardTotals
   /** One entry per shopper, each carrying every cart attributed to them. */
-  visitors: VisitorGroup[]
+  visitors: DashboardVisitor[]
   /** Every cart, ungrouped — kept for exports and for auditing a merge. */
   sessions: SessionRow[]
   abandoned_products: AbandonedProduct[]
@@ -121,6 +130,25 @@ export type Dashboard = {
 
 const TOP_PRODUCTS = 10
 const TOP_EXIT_PATHS = 8
+export const ABANDONMENT_MINUTES = 60
+const ABANDONMENT_MS = ABANDONMENT_MINUTES * 60_000
+export const ORDER_SCAN_CAP = 2000
+
+export const analyticsWindow = (rawDays: unknown, now = new Date()) => {
+  const requested = typeof rawDays === "string" ? parseInt(rawDays, 10) : NaN
+  const days = Number.isFinite(requested) ? Math.min(Math.max(requested, 1), 90) : 7
+  const since = new Date(now.getTime() - days * 86_400_000)
+  return { days, since, now }
+}
+
+export const isInWindow = (
+  value: Date | string | null | undefined,
+  range: { since: Date; now: Date }
+): boolean => {
+  if (!value) return false
+  const date = new Date(value)
+  return date >= range.since && date <= range.now
+}
 
 const iso = (value: string | Date | null | undefined): string | null => {
   if (!value) return null
@@ -200,13 +228,30 @@ const cartValue = (cart: CartRow, items: Array<{
   return items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
 }
 
-/**
- * Identity used to group a product across carts. The SKU is preferred because
- * two carts holding the same variant must collapse into one row; the title is
- * only a fallback for legacy items saved before SKUs were mandatory.
- */
-const productKey = (item: CartItemRow): string =>
-  (item.variant_sku || "").trim() || `title:${itemTitle(item)}`
+const isRecovered = (session: SessionRow): boolean => {
+  const completed = Date.parse(session.completed_at ?? "")
+  if (!Number.isFinite(completed)) return false
+
+  // An old creation date alone is not evidence of a recovery. Prefer the
+  // latest actual activity before completion; completion can itself update the cart.
+  const beforeCompletion = [
+    session.updated_at,
+    session.last_seen_at,
+    ...Object.values(session.stage_at ?? {}),
+  ].map((value) => Date.parse(value ?? "")).filter((at) => at < completed)
+  return beforeCompletion.length > 0 &&
+    completed - Math.max(...beforeCompletion) >= ABANDONMENT_MS
+}
+
+const visitorStatus = (visitor: VisitorGroup, now: number): CheckoutStatus => {
+  if (visitor.lead.stage === "completed") {
+    return visitor.carts.some(isRecovered) ? "recovered" : "completed"
+  }
+  return visitor.carts.some((cart) => {
+    const at = activityAt(cart)
+    return !at || now - at < ABANDONMENT_MS
+  }) ? "active" : "abandoned"
+}
 
 export type BuildDashboardInput = {
   carts: CartRow[]
@@ -219,6 +264,7 @@ export type BuildDashboardInput = {
    * is reconsidered an hour later. Omit to use the module default.
    */
   repeatWindowMs?: number
+  now?: Date
 }
 
 export const buildDashboard = ({
@@ -226,6 +272,7 @@ export const buildDashboard = ({
   journeys,
   defaultCurrency = "eur",
   repeatWindowMs,
+  now = new Date(),
 }: BuildDashboardInput): Dashboard => {
   const byCart = new Map<string, JourneyRow>()
   for (const journey of journeys) byCart.set(journey.cart_id, journey)
@@ -266,7 +313,7 @@ export const buildDashboard = ({
       items,
       item_count: items.reduce((sum, item) => sum + item.quantity, 0),
       total: cartValue(cart, items),
-      currency_code: (cart.currency_code || defaultCurrency).toLowerCase(),
+      currency_code: (cart.currency_code?.trim() || defaultCurrency).toLowerCase(),
       created_at: iso(cart.created_at),
       updated_at: iso(cart.updated_at),
       last_seen_at: iso(journey?.last_seen_at ?? null),
@@ -286,8 +333,12 @@ export const buildDashboard = ({
   // same cart three times is one abandonment worth one call-back, not three —
   // counting carts inflated the abandoned total and the lost value, and
   // divided the conversion rate by the duplicates.
-  const visitors = groupSessionsByVisitor(sessions, { repeatWindowMs })
-  const abandonedVisitors = visitors.filter((v) => v.lead.stage !== "completed")
+  const visitors = groupSessionsByVisitor(sessions, { repeatWindowMs }).map((v) => ({
+    ...v,
+    status: visitorStatus(v, now.getTime()),
+  }))
+  const abandonedVisitors = visitors.filter((v) => v.status === "abandoned")
+  const activeVisitors = visitors.filter((v) => v.status === "active")
   const completedVisitors = visitors.filter((v) => v.lead.stage === "completed")
   const abandoned = abandonedVisitors.map((v) => v.lead)
   const completed = completedVisitors.map((v) => v.lead)
@@ -303,7 +354,7 @@ export const buildDashboard = ({
       // nobody abandons a checkout over a €0 item they did not pick.
       if (item.is_gift) continue
 
-      const key = item.sku ?? `title:${item.title}`
+      const key = JSON.stringify([session.currency_code, item.sku ?? `title:${item.title}`])
       const row = products.get(key) ?? {
         key,
         title: item.title,
@@ -312,6 +363,7 @@ export const buildDashboard = ({
         carts: 0,
         units: 0,
         value: 0,
+        currency: session.currency_code,
       }
       if (!seen.has(key)) {
         row.carts += 1
@@ -330,22 +382,34 @@ export const buildDashboard = ({
     paths.set(session.last_path, (paths.get(session.last_path) ?? 0) + 1)
   }
 
-  const currency =
-    sessions.find((s) => s.currency_code)?.currency_code ?? defaultCurrency
+  const money = new Map<string, CurrencyTotals>()
+  for (const { currency_code: currency } of sessions) {
+    if (!money.has(currency)) money.set(currency, { currency, lost_value: 0, converted_value: 0 })
+  }
+  for (const session of abandoned) money.get(session.currency_code)!.lost_value += session.total
+  for (const session of completed) money.get(session.currency_code)!.converted_value += session.total
+  const byCurrency = [...money.values()].sort((a, b) => a.currency.localeCompare(b.currency))
+  const single = byCurrency.length === 1 ? byCurrency[0] : null
 
   return {
-    funnel: buildFunnel(visitors.map((v) => v.lead.stage)),
+    funnel: buildFunnel(
+      visitors.map((v) => v.lead.stage),
+      activeVisitors.map((v) => v.lead.stage)
+    ),
     visitors,
     totals: {
       tracked: visitors.length,
       completed: completedVisitors.length,
+      active: activeVisitors.length,
       abandoned: abandonedVisitors.length,
+      recovered: completedVisitors.filter((v) => v.status === "recovered").length,
       conversion_rate: visitors.length
         ? completedVisitors.length / visitors.length
         : 0,
-      lost_value: abandoned.reduce((sum, s) => sum + s.total, 0),
-      converted_value: completed.reduce((sum, s) => sum + s.total, 0),
-      currency,
+      lost_value: single?.lost_value ?? (byCurrency.length ? null : 0),
+      converted_value: single?.converted_value ?? (byCurrency.length ? null : 0),
+      currency: single?.currency ?? (byCurrency.length ? null : defaultCurrency),
+      by_currency: byCurrency,
       with_storefront_data: visitors.filter((v) =>
         v.carts.some((c) => c.observed_by !== "cart")
       ).length,
@@ -354,7 +418,7 @@ export const buildDashboard = ({
     },
     sessions,
     abandoned_products: [...products.values()]
-      .sort((a, b) => b.carts - a.carts || b.value - a.value)
+      .sort((a, b) => b.carts - a.carts || a.currency.localeCompare(b.currency) || b.value - a.value)
       .slice(0, TOP_PRODUCTS),
     exit_paths: [...paths.entries()]
       .map(([path, count]) => ({ path, count }))

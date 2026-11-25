@@ -63,10 +63,8 @@ export const ExitPaths = ({
  */
 export const AbandonedProducts = ({
   rows,
-  currency,
 }: {
   rows: AbandonedProduct[]
-  currency: string
 }) => {
   if (!rows.length) {
     return (
@@ -118,7 +116,7 @@ export const AbandonedProducts = ({
             <div className="mt-1 flex items-baseline justify-between gap-x-3 text-[10.5px] text-ui-fg-muted">
               <span className="truncate font-mono">{row.sku ?? "—"}</span>
               <span className="tabular-nums">
-                {row.units} ks · {formatMoney(row.value, currency)}
+                {row.units} ks · {formatMoney(row.value, row.currency)}
               </span>
             </div>
           </div>
