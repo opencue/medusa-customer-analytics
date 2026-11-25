@@ -30,7 +30,8 @@ test("release workflow uses tokenless npm trusted publishing", () => {
 });
 
 test("a published GitHub release triggers npm publishing for its package version", () => {
-  assert.match(workflow, /\n  release:\n    types:\s*\[published\]/);
+  assert.match(workflow, /^[ \t]+release:[ \t]*\r?\n[ \t]+types:\s*\[\s*published\s*\]/m);
   assert.match(workflow, /test "\$tag" = "\$version"/);
   assert.match(workflow, /github\.event_name == 'release' \|\| inputs\.publish == true/);
+  assert.match(workflow, /steps\.registry\.outputs\.exists != 'true'/);
 });
