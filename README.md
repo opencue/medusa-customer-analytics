@@ -625,6 +625,18 @@ After changing a data model, regenerate the migration from **inside this repo**
 Issues and pull requests:
 [github.com/opencue/medusa-customer-analytics](https://github.com/opencue/medusa-customer-analytics).
 
+### Release to npm
+
+Bump `package.json` through a PR, then publish a GitHub Release from `main`
+with the matching tag (for example, `v0.3.1`). The
+[`Release` workflow](.github/workflows/release.yml) tests, builds, and publishes
+the version to npm. It skips versions already in the registry.
+
+The package owner must first configure
+[npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) for
+`opencue/medusa-customer-analytics`, workflow `release.yml`, environment `npm`,
+with **Allow npm publish** enabled. The workflow does not need an npm token.
+
 ---
 
 ## Relationship to Medusa
