@@ -20,6 +20,7 @@ and is **not affiliated with, endorsed by, or maintained by Medusa** — see
 ## Table of contents
 
 - [What it does](#what-it-does)
+- [Dashboard preview and example data](#dashboard-preview-and-example-data)
 - [Facts at a glance](#facts-at-a-glance)
 - [Why two observers](#why-two-observers)
 - [Requirements](#requirements)
@@ -51,6 +52,7 @@ From that ladder the plugin produces these views in the Medusa Admin:
 
 | Output | What it answers |
 |---|---|
+| **Successful adds to cart** | How many successful Store API adds occurred, and in how many distinct carts; a later removal does not change these counts |
 | **Funnel** | How many shoppers reached each rung, and how many abandoned there, excluding active checkouts |
 | **Session table** | Where each shopper got to, plus active, abandoned, completed, or completed after a return |
 | **Abandoned products** | Which products keep getting added to carts that never convert |
@@ -58,14 +60,16 @@ From that ladder the plugin produces these views in the Medusa Admin:
 | **Win-back results** | Orders, discounts and order value for a promotion code, by currency |
 
 An unfinished shopper is **active** until there has been 60 minutes without
-recorded activity on any of their carts. A completed cart with an observed gap
-of at least 60 minutes before completion is classified as **recovered**. The
-gap is either recorded when a beacon arrives at least 60 minutes after the
-previous beacon or measured from the latest recorded activity to completion.
-First-stage timestamps and cart creation alone don't establish a gap. It can
-miss returns without observed activity or after storefront data expires.
+recorded activity on any of their carts. A completed cart is classified as
+**recovered** only if a beacon previously arrived after at least 60 minutes
+without an observed beacon, cart change, or successful add. The plugin checks
+cart and related line-item, shipping and payment timestamps at the time of the
+beacon; it does not infer recovery from completion or old beacon-only markers.
+This can miss returns without storefront observation or after journey data expires.
 Recovery is a subset of completed checkouts and is not attributed to a promotion.
 
+Recommendations count abandoned shoppers per product and currency and exclude
+products with a recorded order for any of their variants in the same window.
 Recommendations default to **investigate**. A pattern is marked high confidence
 only if at least three abandoned shoppers had storefront observations, those
 observations cover at least half the sample, and a strict majority of the
@@ -74,6 +78,37 @@ checking the product and possibly testing a discount; stopping at delivery
 suggests checking shipping options and costs; stopping at payment suggests
 checking payment friction. These are hypotheses, not causes. No products are
 selected for a promotion automatically.
+
+## Dashboard preview and example data
+
+These screenshots show the real Medusa Admin with fictional demo data. No
+customer records or live-shop metrics are shown.
+
+### Checkout overview
+
+![Checkout tracker with successful adds, distinct carts, checkout statuses and the seven-step funnel](docs/images/checkout-overview.webp)
+
+The demo shows **68 successful adds across 41 distinct carts**: 4 active,
+27 abandoned, and 10 completed, including 2 with an observed return. The funnel
+counts shoppers rather than add events; active carts are not treated as abandonment.
+
+### Product recommendations and win-back
+
+![Abandoned-product recommendations by checkout step and promo-code results for EUR and HUF](docs/images/checkout-win-back.webp)
+
+| Example | What to look for |
+|---|---|
+| **Commuter Backpack** | Different variants stalled at delivery. The recommendation groups the variants under one product and suggests checking shipping. |
+| **Desk Mat** | Several EUR shoppers stopped at the address step, while HUF carts show a different pattern. Read recommendations per currency. |
+| **Studio Lamp** | It appears in abandoned baskets, but a different variant sold. It is excluded from the never-sold recommendation list. |
+| **`WELCOME-BACK`** | Five example orders used this promotion code. EUR and HUF amounts are reported separately, not added together. |
+
+### Shopper sessions
+
+![Example sessions with anonymous and email-identified shoppers, different checkout stages and multiple currencies](docs/images/checkout-sessions.webp)
+
+The demo includes active, abandoned, completed, and completed-after-return
+sessions, plus anonymous shoppers and carts without page-level observations.
 
 ---
 
@@ -87,7 +122,7 @@ selected for a promotion automatically.
 | **Medusa version** | 2.13.4 (peer dependency) |
 | **Node** | >= 20 |
 | **Module name** | `checkout_tracking` |
-| **Database table** | `checkout_journey` — one row per cart, page-level data only |
+| **Database tables** | `checkout_journey` (one row per cart) and `checkout_cart_add` (one row per recorded successful add) |
 | **Admin route** | `/app/checkout-tracker`, labelled "Checkout tracker" |
 | **Admin API** | `GET /admin/checkout-tracking`, `GET` and `POST /admin/checkout-tracking/promotions` |
 | **Store API** | `POST /store/checkout-tracking` (the beacon) |
@@ -392,7 +427,7 @@ probe which cart ids exist.
 
 | Name | Schedule | Does |
 |---|---|---|
-| `checkout-tracking-retention` | `30 * * * *` (hourly, on the half hour) | Hard-deletes `checkout_journey` rows whose `last_seen_at` is older than 72 hours |
+| `checkout-tracking-retention` | `30 * * * *` (hourly, on the half hour) | Hard-deletes journeys whose last beacon and add events whose timestamp are older than 72 hours |
 
 It runs on the half hour so it interleaves with typical abandoned-cart reminder
 jobs (top of the hour) rather than competing for the same connection pool while
@@ -412,6 +447,11 @@ permanently failed.
   is also the honest reading of "abandoned *this* checkout".
 - **No duplication of cart data.** Address, delivery, payment and completion are
   derived at read time from the cart. They are never copied into this table.
+- **Server-side adds.** A successful `POST /store/carts/:id/line-items` records
+  one add, regardless of quantity, with only the existing cart ID and timestamps.
+  Failed responses, quantity edits, removals and internal workflows do not count.
+  The card is independent of the funnel and reports adds recorded since deployment
+  in the selected period, capped at 72 hours. There is no historical backfill.
 - **72-hour hard delete**, enforced hourly — not a soft delete, because a
   soft-deleted row still links a cart (and therefore an e-mail) to a browsing
   trail.

@@ -9,6 +9,7 @@ import {
 } from "../../../modules/checkout_tracking/lib/visitors"
 import type CheckoutTrackingModuleService from "../../../modules/checkout_tracking/service"
 import { ABANDONMENT_MINUTES } from "../../../modules/checkout_tracking/lib/journey"
+import { CART_ACTIVITY_FIELDS } from "../../../modules/checkout_tracking/lib/cart-activity"
 import {
   ORDER_SCAN_CAP,
   abandonedProductBaskets,
@@ -19,8 +20,9 @@ import {
 } from "../../../modules/checkout_tracking/lib/dashboard"
 import {
   buildSaleCandidates,
-  buildSoldUnitsBySku,
+  buildSoldProductIds,
   isSaleProduct,
+  saleProductKey,
 } from "../../../modules/checkout_tracking/lib/sale-candidates"
 
 /**
@@ -53,7 +55,7 @@ const CART_FIELDS = [
   "currency_code",
   "total",
   "created_at",
-  "updated_at",
+  ...CART_ACTIVITY_FIELDS,
   "completed_at",
   "items.id",
   "items.title",
@@ -104,7 +106,10 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const service = req.scope.resolve<CheckoutTrackingModuleService>(
     CHECKOUT_TRACKING_MODULE
   )
-  const journeys = await service.listByCartIds(carts.map((cart) => cart.id))
+  const [journeys, add_to_cart] = await Promise.all([
+    service.listByCartIds(carts.map((cart) => cart.id)),
+    service.cartAddStats(since, now),
+  ])
 
   const dashboard = buildDashboard({
     carts,
@@ -131,10 +136,12 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   )
   const ordersCapped = orders.length > ORDER_SCAN_CAP
 
+  const baskets = capped || ordersCapped ? [] : abandonedProductBaskets(dashboard.visitors, isSaleProduct, saleProductKey)
   const sale_candidates = capped || ordersCapped ? [] : buildSaleCandidates({
-    sessions: abandonedProductBaskets(dashboard.visitors, isSaleProduct),
-    soldUnitsBySku: buildSoldUnitsBySku(
-      orders.filter((order) => order.status !== "canceled" && order.status !== "draft")
+    sessions: baskets,
+    soldProductIds: buildSoldProductIds(
+      orders.filter((order) => order.status !== "canceled" && order.status !== "draft"),
+      baskets
     ),
   })
 
@@ -142,6 +149,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     range: { days, since: since.toISOString(), now: now.toISOString() },
     abandonment_minutes: ABANDONMENT_MINUTES,
     ...dashboard,
+    add_to_cart,
     sale_candidates,
     scan: {
       // Carts inside the window, not rows fetched — the fetched count is an

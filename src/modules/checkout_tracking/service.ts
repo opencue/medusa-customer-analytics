@@ -1,8 +1,12 @@
-import { MedusaService } from "@medusajs/framework/utils"
+import { InjectManager, MedusaContext, MedusaService } from "@medusajs/framework/utils"
+import type { Context } from "@medusajs/framework/types"
+import type { EntityManager } from "@medusajs/framework/mikro-orm/postgresql"
 
 import CheckoutJourney from "./models/checkout-journey"
+import CheckoutCartAdd from "./models/checkout-cart-add"
 import {
   nextJourneyState,
+  mightHaveReturned,
   type JourneyRow,
   type TrackInput,
 } from "./lib/journey"
@@ -26,7 +30,33 @@ const chunk = <T>(rows: T[], size: number): T[][] => {
 
 class CheckoutTrackingModuleService extends MedusaService({
   CheckoutJourney,
+  CheckoutCartAdd,
 }) {
+  @InjectManager()
+  async cartAddStats(
+    since: Date,
+    now: Date,
+    @MedusaContext() context: Context<EntityManager> = {}
+  ): Promise<{ adds: number; carts: number; retention_hours: number }> {
+    const from = new Date(Math.max(since.getTime(), now.getTime() - RETENTION_HOURS * 3_600_000))
+    const [counts] = await context.manager!.execute<Array<{ adds: string; carts: string }>>(
+      `select count(*) as adds, count(distinct cart_id) as carts
+       from checkout_cart_add
+       where deleted_at is null and created_at >= ? and created_at <= ?`,
+      [from, now]
+    )
+    return { adds: Number(counts.adds), carts: Number(counts.carts), retention_hours: RETENTION_HOURS }
+  }
+
+  @InjectManager()
+  async purgeExpiredCartAdds(
+    now: Date = new Date(),
+    @MedusaContext() context: Context<EntityManager> = {}
+  ): Promise<void> {
+    const cutoff = new Date(now.getTime() - RETENTION_HOURS * 3_600_000)
+    await context.manager!.execute("delete from checkout_cart_add where created_at < ?", [cutoff])
+  }
+
   /**
    * Upsert the journey for a cart from a storefront beacon.
    *
@@ -34,7 +64,11 @@ class CheckoutTrackingModuleService extends MedusaService({
    * endpoint that must not tell a prober which stage names exist, and a stray
    * beacon from a stale storefront bundle is expected noise, not an error.
    */
-  async track(input: TrackInput, now: Date = new Date()): Promise<void> {
+  async track(
+    input: TrackInput,
+    now: Date = new Date(),
+    readServerActivity?: () => Promise<Date | null>
+  ): Promise<void> {
     const apply = async (): Promise<boolean> => {
       const existing = (
         (await this.listCheckoutJourneys({
@@ -42,7 +76,10 @@ class CheckoutTrackingModuleService extends MedusaService({
         })) as JourneyRow[]
       )[0]
 
-      const patch = nextJourneyState(existing ?? null, input, now)
+      const server_activity_at = readServerActivity && mightHaveReturned(existing ?? null, now)
+        ? await readServerActivity()
+        : null
+      const patch = nextJourneyState(existing ?? null, { ...input, server_activity_at }, now)
       if (!patch) return true
 
       if (existing) {

@@ -33,7 +33,10 @@ export default async function checkoutTrackingRetentionJob(
     const service = container.resolve<CheckoutTrackingModuleService>(
       CHECKOUT_TRACKING_MODULE
     )
-    const deleted = await service.purgeExpired()
+    const [deleted] = await Promise.all([
+      service.purgeExpired(),
+      service.purgeExpiredCartAdds(),
+    ])
 
     if (deleted > 0) {
       logger?.info(

@@ -1,30 +1,33 @@
 /** Rank products by abandonment. The last step suggests what to test, not why someone left. */
-import { checkoutItemKey, toNumber, type ProductBasket } from "./dashboard"
+import { toNumber, type ProductBasket } from "./dashboard"
 import { stageIndex, type FunnelStage } from "./stages"
 
 export type OrderRow = {
   items?: Array<{
+    product_id?: string | null
     variant_sku?: string | null
     quantity?: unknown
   }> | null
 }
 
-/**
- * Units sold per SKU across the given orders.
- *
- * This is what turns "most abandoned" into "most abandoned AND never bought".
- * Without it the list is topped by whatever is popular, and the merchant ends
- * up discounting the best-seller.
- */
-export const buildSoldUnitsBySku = (
-  orders: OrderRow[]
-): Record<string, number> => {
-  const sold: Record<string, number> = {}
+/** Promotions target a whole product: sales of any of its variants count. */
+export const buildSoldProductIds = (orders: OrderRow[], baskets: ProductBasket[] = []): Set<string> => {
+  const sold = new Set<string>()
+  const unlinkedSkus = new Set<string>()
   for (const order of orders) {
     for (const item of order.items ?? []) {
-      const sku = (item.variant_sku || "").trim()
-      if (!sku) continue
-      sold[sku] = (sold[sku] ?? 0) + toNumber(item.quantity)
+      if (toNumber(item.quantity) <= 0) continue
+      if (item.product_id) sold.add(item.product_id)
+      else if (item.variant_sku?.trim()) unlinkedSkus.add(item.variant_sku.trim())
+    }
+  }
+  // Older order rows may only have a SKU. If it identifies a basket variant,
+  // disqualify the entire product, not just the matching variant/currency.
+  if (unlinkedSkus.size > 0) {
+    for (const { items } of baskets) {
+      for (const item of items) {
+        if (item.product_id && item.sku && unlinkedSkus.has(item.sku)) sold.add(item.product_id)
+      }
     }
   }
   return sold
@@ -102,11 +105,14 @@ const decideAction = (
 
 export type BuildSaleCandidatesInput = {
   sessions: ProductBasket[]
-  /** Units sold per SKU in the same window, from completed orders. */
-  soldUnitsBySku: Record<string, number>
+  /** Catalog products purchased in the same window. */
+  soldProductIds: ReadonlySet<string>
 }
 
 type ProductItem = ProductBasket["items"][number]
+
+export const saleProductKey = (currency: string, item: ProductItem): string =>
+  JSON.stringify([currency, item.product_id])
 
 /** No free gifts, surcharges or other lines that cannot be targeted. */
 export const isSaleProduct = (item: ProductItem): item is ProductItem & { product_id: string } =>
@@ -114,7 +120,7 @@ export const isSaleProduct = (item: ProductItem): item is ProductItem & { produc
 
 export const buildSaleCandidates = ({
   sessions,
-  soldUnitsBySku,
+  soldProductIds,
 }: BuildSaleCandidatesInput): SaleCandidate[] => {
   type Draft = Omit<SaleCandidate, "action" | "action_confidence" | "stage_mix" | "observed_coverage"> & {
     stages: Map<FunnelStage, number>
@@ -131,9 +137,9 @@ export const buildSaleCandidates = ({
     const seen = new Set<string>()
 
     for (const item of session.items) {
-      if (!isSaleProduct(item)) continue
+      if (!isSaleProduct(item) || soldProductIds.has(item.product_id)) continue
 
-      const key = checkoutItemKey(session.currency_code, item)
+      const key = saleProductKey(session.currency_code, item)
 
       const draft: Draft = drafts.get(key) ?? {
         key,
@@ -145,7 +151,7 @@ export const buildSaleCandidates = ({
         units: 0,
         stranded_value: 0,
         currency: session.currency_code,
-        sold_units: item.sku ? (soldUnitsBySku[item.sku] ?? 0) : 0,
+        sold_units: 0,
         observed_sessions: 0,
         stages: new Map<FunnelStage, number>(),
         observedStages: new Map<FunnelStage, number>(),
@@ -171,6 +177,7 @@ export const buildSaleCandidates = ({
 
       draft.units += item.quantity
       draft.stranded_value += item.quantity * item.unit_price
+      if (draft.sku !== item.sku) draft.sku = null
       draft.thumbnail = draft.thumbnail ?? item.thumbnail
       drafts.set(key, draft)
     }
@@ -179,9 +186,6 @@ export const buildSaleCandidates = ({
   return [...drafts.values()]
     .filter(
       (draft) =>
-        // "Most added, never purchased" — a product that also sold in this
-        // window is converting for someone, so it is not the blocker.
-        draft.sold_units === 0 &&
         draft.abandoned_carts >= MIN_ABANDONED_CARTS
     )
     .map((draft) => {

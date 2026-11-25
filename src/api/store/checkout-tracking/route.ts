@@ -4,6 +4,7 @@ import type { Query } from "@medusajs/types"
 
 import { CHECKOUT_TRACKING_MODULE } from "../../../modules/checkout_tracking"
 import type CheckoutTrackingModuleService from "../../../modules/checkout_tracking/service"
+import { CART_ACTIVITY_FIELDS, latestCartActivity, type CartActivity } from "../../../modules/checkout_tracking/lib/cart-activity"
 
 /**
  * Storefront checkout beacon.
@@ -50,11 +51,12 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     const query = req.scope.resolve<Query>(ContainerRegistrationKeys.QUERY)
     const { data: carts } = await query.graph({
       entity: "cart",
-      fields: ["id"],
+      fields: ["id", "completed_at"],
       filters: { id: cartId },
     })
 
-    if (!carts?.[0]?.id) {
+    const cart = carts?.[0]
+    if (!cart?.id || cart.completed_at) {
       res.status(204).send()
       return
     }
@@ -68,6 +70,21 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       path: typeof body.path === "string" ? body.path : null,
       locale: typeof body.locale === "string" ? body.locale : null,
       device: typeof body.device === "string" ? body.device : null,
+    }, new Date(), async () => {
+      try {
+        const [{ data }, [lastAdd]] = await Promise.all([
+          query.graph({ entity: "cart", fields: ["id", "completed_at", ...CART_ACTIVITY_FIELDS], filters: { id: cartId } }),
+          service.listCheckoutCartAdds(
+            { cart_id: cartId },
+            { select: ["created_at"], order: { created_at: "DESC" }, take: 1 }
+          ),
+        ])
+        const snapshot = data?.[0] as (CartActivity & { completed_at?: Date | string | null }) | undefined
+        return snapshot && !snapshot.completed_at ? latestCartActivity(snapshot, lastAdd?.created_at) : null
+      } catch {
+        console.warn("[checkout-tracking] server activity unavailable for return check")
+        return null // Keep the page beacon without confirming a return.
+      }
     })
   } catch (error) {
     // A dropped beacon costs one row of analytics; it must never surface to a

@@ -17,6 +17,7 @@ import {
   type FunnelStage,
 } from "./stages"
 import { ABANDONMENT_MS, type JourneyRow } from "./journey"
+import { latestCartActivity, type CartActivity } from "./cart-activity"
 import { activityAt, groupSessionsByVisitor, type VisitorGroup } from "./visitors"
 
 export type CartItemRow = {
@@ -37,7 +38,7 @@ export type CartItemRow = {
 // a cart HAS items to place it on the ladder, while the dashboard needs each
 // item's fields. Intersecting the two would leave `items` as
 // `Array<unknown> & CartItemRow[]`, which reads back as `unknown`.
-export type CartRow = Omit<CartLike, "items"> & {
+export type CartRow = Omit<CartLike, "items"> & Omit<CartActivity, "items"> & {
   id: string
   email?: string | null
   customer_id?: string | null
@@ -45,7 +46,7 @@ export type CartRow = Omit<CartLike, "items"> & {
   total?: number | null
   created_at?: string | Date | null
   updated_at?: string | Date | null
-  items?: CartItemRow[] | null
+  items?: Array<CartItemRow & { updated_at?: string | Date | null }> | null
 }
 
 export type SessionRow = {
@@ -110,13 +111,14 @@ export const checkoutItemKey = (currency: string, item: ProductItem): string => 
 /** One basket's lines per shopper, product and currency; the furthest cart wins. */
 export const abandonedProductBaskets = (
   visitors: DashboardVisitor[],
-  eligible: (item: ProductItem) => boolean = (item) => !item.is_gift
+  eligible: (item: ProductItem) => boolean = (item) => !item.is_gift,
+  itemKey = checkoutItemKey
 ): ProductBasket[] => visitors.flatMap((visitor) => {
   if (visitor.status !== "abandoned") return []
   const seen = new Set<string>()
   return visitor.carts.flatMap(({ currency_code, items, observed_by, stage }) => {
-    const unique = items.filter((item) => eligible(item) && !seen.has(checkoutItemKey(currency_code, item)))
-    for (const item of unique) seen.add(checkoutItemKey(currency_code, item))
+    const unique = items.filter((item) => eligible(item) && !seen.has(itemKey(currency_code, item)))
+    for (const item of unique) seen.add(itemKey(currency_code, item))
     return unique.length ? [{ currency_code, items: unique, observed_by, stage }] : []
   })
 })
@@ -253,15 +255,7 @@ const isRecovered = (session: SessionRow, journey: JourneyRow | undefined): bool
   const completed = Date.parse(session.completed_at ?? "")
   if (!Number.isFinite(completed)) return false
 
-  if (Date.parse(iso(journey?.returned_at) ?? "") <= completed) return true
-
-  // The first visit to each stage doesn't tell us when the shopper was last
-  // active. Only the most recent recorded activity can anchor a gap here.
-  const seen = Date.parse(session.last_seen_at ?? "")
-  if (seen >= completed) return false
-  const updated = Date.parse(session.updated_at ?? "")
-  const lastActivity = [seen, updated].filter((at) => at < completed)
-  return lastActivity.length > 0 && completed - Math.max(...lastActivity) >= ABANDONMENT_MS
+  return Date.parse(iso(journey?.confirmed_returned_at) ?? "") <= completed
 }
 
 const visitorStatus = (
@@ -344,7 +338,7 @@ export const buildDashboard = ({
       total: cartValue(cart, items),
       currency_code: (cart.currency_code?.trim() || defaultCurrency).toLowerCase(),
       created_at: iso(cart.created_at),
-      updated_at: iso(cart.updated_at),
+      updated_at: iso(latestCartActivity(cart)),
       last_seen_at: iso(journey?.last_seen_at ?? null),
       last_path: journey?.last_path ?? null,
       device: journey?.device ?? null,

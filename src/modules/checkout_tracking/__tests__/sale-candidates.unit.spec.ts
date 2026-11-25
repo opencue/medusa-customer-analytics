@@ -1,4 +1,4 @@
-import { buildSaleCandidates, isSaleProduct, MIN_ABANDONED_CARTS } from "../lib/sale-candidates"
+import { buildSaleCandidates, buildSoldProductIds, isSaleProduct, saleProductKey, MIN_ABANDONED_CARTS } from "../lib/sale-candidates"
 import { abandonedProductBaskets, type SessionRow } from "../lib/dashboard"
 import type { FunnelStage } from "../lib/stages"
 
@@ -50,7 +50,7 @@ const carts = (n: number, stage: FunnelStage = "cart", over = {}) =>
 
 describe("buildSaleCandidates — what gets on the list", () => {
   it("counts non-lead baskets without counting one shopper twice for the same product", () => {
-    const lead = session("delivery", { items: [item({ sku: "OTHER" })] })
+    const lead = session("delivery", { items: [item({ sku: "OTHER", product_id: "prod_other" })] })
     const earlier = session("cart")
     const visitor = {
       key: "shopper-1", matched_by: "email" as const, status: "abandoned" as const,
@@ -60,8 +60,8 @@ describe("buildSaleCandidates — what gets on the list", () => {
     const sessions = abandonedProductBaskets([
       visitor,
       { ...visitor, key: "shopper-2", lead: second, carts: [second], cart_count: 1 },
-    ], isSaleProduct)
-    const rows = buildSaleCandidates({ sessions, soldUnitsBySku: {} })
+    ], isSaleProduct, saleProductKey)
+    const rows = buildSaleCandidates({ sessions, soldProductIds: new Set() })
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ sku: "CINKA-20", abandoned_carts: 2, stranded_value: 200 })
   })
@@ -69,7 +69,7 @@ describe("buildSaleCandidates — what gets on the list", () => {
   it("ranks a never-sold product by how many carts it blocked", () => {
     const rows = buildSaleCandidates({
       sessions: carts(4),
-      soldUnitsBySku: {},
+      soldProductIds: new Set(),
     })
 
     expect(rows).toHaveLength(1)
@@ -87,20 +87,20 @@ describe("buildSaleCandidates — what gets on the list", () => {
     // It converts for someone, so it is not the blocker — discounting it would
     // hand money to buyers who were going to purchase anyway.
     const rows = buildSaleCandidates({
-      sessions: carts(5),
-      soldUnitsBySku: { "CINKA-20": 1 },
+      sessions: [...carts(3), ...carts(2, "cart", { items: [item({ sku: null })] })],
+      soldProductIds: buildSoldProductIds([{ items: [{ product_id: "prod_cinka", variant_sku: "SOLD-VARIANT", quantity: 1 }] }]),
     })
     expect(rows).toEqual([])
   })
 
   it("ignores a product only one shopper abandoned", () => {
     expect(
-      buildSaleCandidates({ sessions: carts(1), soldUnitsBySku: {} })
+      buildSaleCandidates({ sessions: carts(1), soldProductIds: new Set() })
     ).toEqual([])
     expect(
       buildSaleCandidates({
         sessions: carts(MIN_ABANDONED_CARTS),
-        soldUnitsBySku: {},
+        soldProductIds: new Set(),
       })
     ).toHaveLength(1)
   })
@@ -108,19 +108,25 @@ describe("buildSaleCandidates — what gets on the list", () => {
   it("never lists a product from a converted cart", () => {
     const rows = buildSaleCandidates({
       sessions: [...carts(2), session("completed"), session("completed")],
-      soldUnitsBySku: {},
+      soldProductIds: new Set(),
     })
     // The two completed carts must not inflate the count.
     expect(rows[0].abandoned_carts).toBe(2)
   })
 
+  it("also excludes the whole product when a legacy sale matches a known variant SKU", () => {
+    const sessions = [session("cart"), ...carts(2, "cart", { items: [item({ sku: "OTHER-SIZE" })] })]
+    const soldProductIds = buildSoldProductIds([{ items: [{ variant_sku: "CINKA-20", quantity: 1 }] }], sessions)
+    expect(buildSaleCandidates({ sessions, soldProductIds })).toEqual([])
+  })
+
   it("counts a product once per cart across duplicate lines", () => {
     const rows = buildSaleCandidates({
       sessions: [
-        session("cart", { items: [item(), item({ quantity: 2 })] }),
+        session("cart", { items: [item(), item({ sku: "OTHER-SIZE", quantity: 2 })] }),
         session("cart"),
       ],
-      soldUnitsBySku: {},
+      soldProductIds: new Set(),
     })
     expect(rows[0].abandoned_carts).toBe(2)
     expect(rows[0].units).toBe(4)
@@ -137,7 +143,7 @@ describe("buildSaleCandidates — what gets on the list", () => {
         session("cart", { items: [a(), b()] }),
         session("cart", { items: [b()] }),
       ],
-      soldUnitsBySku: {},
+      soldProductIds: new Set(),
     })
     expect(rows.map((r) => r.sku)).toEqual(["A", "B"])
   })
@@ -154,7 +160,7 @@ describe("buildSaleCandidates — what gets on the list", () => {
           items: [item({ sku: null, title: "Poplatok za dobierku", product_id: null, unit_price: 1.9 })],
         }),
       ],
-      soldUnitsBySku: {},
+      soldProductIds: new Set(),
     })
     expect(rows).toEqual([])
   })
@@ -167,7 +173,7 @@ describe("buildSaleCandidates — what gets on the list", () => {
         session("cart", { items: [item({ sku: "GIFT", title: "Darček", unit_price: 0 })] }),
         session("cart", { items: [item({ sku: "GIFT", title: "Darček", unit_price: 0 })] }),
       ],
-      soldUnitsBySku: {},
+      soldProductIds: new Set(),
     })
     expect(rows).toEqual([])
   })
@@ -182,7 +188,7 @@ describe("buildSaleCandidates — what gets on the list", () => {
     })
     const rows = buildSaleCandidates({
       sessions: [session("cart", withNoise()), session("cart", withNoise())],
-      soldUnitsBySku: {},
+      soldProductIds: new Set(),
     })
     expect(rows.map((r) => r.sku)).toEqual(["CINKA-20"])
   })
@@ -194,7 +200,7 @@ describe("buildSaleCandidates — which lever it recommends", () => {
   it("recommends a discount when they quit before seeing shipping", () => {
     const rows = buildSaleCandidates({
       sessions: carts(3, "checkout_entered", observed),
-      soldUnitsBySku: {},
+      soldProductIds: new Set(),
     })
     expect(rows[0].action).toBe("discount")
     expect(rows[0].action_confidence).toBe("high")
@@ -205,7 +211,7 @@ describe("buildSaleCandidates — which lever it recommends", () => {
     // discount here spends money on the wrong objection.
     const rows = buildSaleCandidates({
       sessions: carts(3, "delivery", observed),
-      soldUnitsBySku: {},
+      soldProductIds: new Set(),
     })
     expect(rows[0].action).toBe("free_shipping")
     expect(rows[0].action_confidence).toBe("high")
@@ -215,7 +221,7 @@ describe("buildSaleCandidates — which lever it recommends", () => {
     // Price and shipping were both accepted, so this is friction, not cost.
     const rows = buildSaleCandidates({
       sessions: carts(3, "payment", observed),
-      soldUnitsBySku: {},
+      soldProductIds: new Set(),
     })
     expect(rows[0].action).toBe("investigate")
   })
@@ -229,7 +235,7 @@ describe("buildSaleCandidates — which lever it recommends", () => {
         ...carts(2, "payment", observed),
         ...carts(2, "cart", observed),
       ],
-      soldUnitsBySku: {},
+      soldProductIds: new Set(),
     })
     expect(rows[0].action_confidence).toBe("low")
   })
@@ -239,7 +245,7 @@ describe("buildSaleCandidates — which lever it recommends", () => {
     // "it was in a basket". Saying otherwise would dress a gap up as insight.
     const rows = buildSaleCandidates({
       sessions: carts(5, "cart"),
-      soldUnitsBySku: {},
+      soldProductIds: new Set(),
     })
     expect(rows[0].observed_sessions).toBe(0)
     expect(rows[0].action).toBe("investigate")
@@ -249,7 +255,7 @@ describe("buildSaleCandidates — which lever it recommends", () => {
   it("does not let a single observed cart speak for the unobserved majority", () => {
     const rows = buildSaleCandidates({
       sessions: [...carts(1, "delivery", observed), ...carts(5)],
-      soldUnitsBySku: {},
+      soldProductIds: new Set(),
     })
     expect(rows[0]).toMatchObject({
       action: "investigate", observed_sessions: 1, observed_coverage: 1 / 6,
@@ -262,7 +268,7 @@ describe("buildSaleCandidates — which lever it recommends", () => {
         ...carts(1, "cart", observed),
         ...carts(3, "delivery", observed),
       ],
-      soldUnitsBySku: {},
+      soldProductIds: new Set(),
     })
     expect(rows[0].stage_mix).toEqual([
       { stage: "delivery", carts: 3 },
@@ -273,7 +279,7 @@ describe("buildSaleCandidates — which lever it recommends", () => {
 
 describe("buildSaleCandidates — edges", () => {
   it("returns nothing for an empty window", () => {
-    expect(buildSaleCandidates({ sessions: [], soldUnitsBySku: {} })).toEqual([])
+    expect(buildSaleCandidates({ sessions: [], soldProductIds: new Set() })).toEqual([])
   })
 
   it("groups by product ID when SKU is missing, even if two titles match", () => {
@@ -285,7 +291,7 @@ describe("buildSaleCandidates — edges", () => {
         session("cart", { items: [withoutSku("prod_b")] }),
         session("cart", { items: [withoutSku("prod_b")] }),
       ],
-      soldUnitsBySku: {},
+      soldProductIds: new Set(),
     })
     expect(rows.map((r) => r.product_id).sort()).toEqual(["prod_a", "prod_b"])
     expect(rows.map((r) => r.abandoned_carts)).toEqual([2, 2])
