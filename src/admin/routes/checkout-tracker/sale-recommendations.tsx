@@ -1,14 +1,9 @@
 import { useState } from "react"
 import { Text, toast } from "@medusajs/ui"
 
-import { formatMoney, formatPercent } from "./format"
-import {
-  ACTION_COLOR,
-  ACTION_LABEL,
-  ACTION_WHY,
-  STAGE_LABEL,
-  type SaleCandidate,
-} from "./types"
+import { useCheckoutTranslation } from "../../lib/checkout-i18n"
+import { formatCount, formatMoney, formatPercent } from "./format"
+import { ACTION_COLOR, type SaleCandidate } from "./types"
 
 /**
  * "What should I put on sale" — and the one button that acts on the answer.
@@ -55,26 +50,24 @@ const createPromotion = async (
   return (await response.json()) as CreateResult
 }
 
-const ActionBadge = ({ row }: { row: SaleCandidate }) => (
-  <span
-    title={ACTION_WHY[row.action]}
-    className="inline-flex shrink-0 items-center gap-x-1 rounded-full px-2 py-[2px] text-[10.5px] font-medium"
-    style={{
-      background: `${ACTION_COLOR[row.action]}1f`,
-      color: ACTION_COLOR[row.action],
-    }}
-  >
-    {ACTION_LABEL[row.action]}
-    {row.action_confidence === "low" ? (
-      <span
-        title="Malá vzorka, nízke pokrytie alebo nejednoznačný výsledok."
-        className="opacity-70"
-      >
-        ?
-      </span>
-    ) : null}
-  </span>
-)
+const ActionBadge = ({ row }: { row: SaleCandidate }) => {
+  const { t } = useCheckoutTranslation()
+  return (
+    <span
+      title={t(`reason.${row.action}`)}
+      className="inline-flex shrink-0 items-center gap-x-1 rounded-full px-2 py-[2px] text-[10.5px] font-medium"
+      style={{
+        background: `${ACTION_COLOR[row.action]}1f`,
+        color: ACTION_COLOR[row.action],
+      }}
+    >
+      {t(`recommendation.${row.action}`)}
+      {row.action_confidence === "low" ? (
+        <span title={t("confidence")} className="opacity-70">?</span>
+      ) : null}
+    </span>
+  )
+}
 
 export const SaleRecommendations = ({
   rows,
@@ -83,6 +76,8 @@ export const SaleRecommendations = ({
   rows: SaleCandidate[]
   onCreated: (code: string) => void
 }) => {
+  const { t, locale } = useCheckoutTranslation()
+  const count = (value: number) => formatCount(value, locale)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [selectedCurrency, setSelectedCurrency] = useState("")
   const [percentage, setPercentage] = useState(String(DEFAULT_PERCENTAGE))
@@ -91,8 +86,7 @@ export const SaleRecommendations = ({
   if (!rows.length) {
     return (
       <Text size="xsmall" className="mt-4 text-ui-fg-subtle">
-        Žiadny produkt sa v tomto období neopakoval v opustených košíkoch bez
-        toho, aby sa aspoň raz predal. To je dobrá správa.
+        {t("emptyRecommendations")}
       </Text>
     )
   }
@@ -126,13 +120,18 @@ export const SaleRecommendations = ({
         parsed,
         currency
       )
-      toast.success("Akcia vytvorená ako koncept", {
-        description: `Kód ${result.created.code} · −${result.created.percentage} % na ${result.created.product_count} produktov. Aktivujte ju v Promotions — zatiaľ nikomu nezľavňuje.`,
+      toast.success(t("draftCreated"), {
+        description: t("draftCreatedDetail", {
+          code: result.created.code,
+          discount: new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 6 })
+            .format(result.created.percentage / 100),
+          products: count(result.created.product_count),
+        }),
       })
       onCreated(result.created.code)
       setSelected(new Set())
     } catch (error) {
-      toast.error("Akciu sa nepodarilo vytvoriť", {
+      toast.error(t("draftError"), {
         description: error instanceof Error ? error.message : String(error),
       })
     } finally {
@@ -144,7 +143,7 @@ export const SaleRecommendations = ({
     <div className="mt-3.5">
       {currencies.length > 1 ? (
         <label className="mb-3 flex items-center gap-x-2 text-xs">
-          Mena
+          {t("currency")}
           <select
             value={currency}
             disabled={busy}
@@ -208,24 +207,28 @@ export const SaleRecommendations = ({
                   </span>
                   <ActionBadge row={row} />
                 </span>
-                <span className="mt-0.5 flex items-center gap-x-2 text-[10.5px] text-ui-fg-muted">
-                  <span className="font-mono">{row.sku ?? "—"}</span>
+                <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10.5px] text-ui-fg-muted">
+                  <bdi className="font-mono">{row.sku ?? "—"}</bdi>
                   <span>·</span>
                   <span className="tabular-nums">
-                    {row.abandoned_carts} košíkov · {row.units} ks ·{" "}
-                    {formatMoney(row.stranded_value, currency)} uviaznuté
+                    {t("carts", { value: count(row.abandoned_carts) })} · {t("units", { value: count(row.units) })} ·{" "}
+                    {t("strandedValue", { amount: formatMoney(row.stranded_value, currency, locale) })}
                   </span>
                   {topStage ? (
                     <>
                       <span>·</span>
                       <span>
-                        najčastejšie stopli: {STAGE_LABEL[topStage.stage]}
+                        {t("commonStage", { stage: t(`stage.${topStage.stage}`) })}
                       </span>
                     </>
                   ) : null}
                 </span>
                 <span className="mt-0.5 block text-[10.5px] text-ui-fg-muted">
-                  Stránkové dáta: {row.observed_sessions}/{row.abandoned_carts} ({formatPercent(row.observed_coverage, 0)})
+                  {t("observed", {
+                    observed: count(row.observed_sessions),
+                    total: count(row.abandoned_carts),
+                    rate: formatPercent(row.observed_coverage, locale, 0),
+                  })}
                 </span>
               </span>
             </label>
@@ -235,14 +238,14 @@ export const SaleRecommendations = ({
 
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-ui-border-base pt-3.5">
         <label className="flex items-center gap-x-2 text-[12px] text-ui-fg-subtle">
-          Zľava
+          {t("discount")}
           <input
             type="number"
             min={1}
             max={90}
             value={percentage}
             onChange={(event) => setPercentage(event.target.value)}
-            className="w-16 rounded-md border border-ui-border-base bg-ui-bg-field px-2 py-1 text-right text-[12px] tabular-nums text-ui-fg-base"
+            className="w-16 rounded-md border border-ui-border-base bg-ui-bg-field px-2 py-1 text-end text-[12px] tabular-nums text-ui-fg-base"
           />
           %
         </label>
@@ -255,24 +258,22 @@ export const SaleRecommendations = ({
           style={{ background: "#6366f1" }}
         >
           {busy
-            ? "Vytváram…"
-            : `Vytvoriť akciu · ${products.length} ${
-                products.length === 1 ? "produkt" : "produktov"
-              }`}
+            ? t("creating")
+            : t("createDraft", { value: count(products.length) })}
         </button>
 
         {!validPercentage ? (
           <span className="text-[11px]" style={{ color: "#ff5b2e" }}>
-            Zadajte 1–90 %.
+            {t("discountRange", {
+              min: formatPercent(0.01, locale, 0),
+              max: formatPercent(0.9, locale, 0),
+            })}
           </span>
         ) : null}
       </div>
 
       <Text size="xsmall" className="mt-2.5 text-ui-fg-muted">
-        Akcia sa vytvorí ako <strong>koncept</strong> s kódom — nikomu nezľavňuje,
-        kým ju neaktivujete v Promotions. Percento je váš odhad: z dát o
-        opustených košíkoch sa správna výška zľavy odvodiť nedá, vidno z nich
-        len to, ktoré produkty zákazníci chceli a nekúpili.
+        {t("draftHint")}
       </Text>
     </div>
   )

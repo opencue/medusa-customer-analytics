@@ -48,13 +48,6 @@ export type VisitorGroup = {
 
 export type CheckoutStatus = "active" | "abandoned" | "completed" | "recovered"
 
-export const STATUS_LABEL: Record<CheckoutStatus, string> = {
-  active: "Rozpracovaný",
-  abandoned: "Opustený",
-  completed: "Dokončený",
-  recovered: "Dokončený po návrate",
-}
-
 export type SessionRow = {
   cart_id: string
   email: string | null
@@ -122,27 +115,6 @@ export type PromotionPerformance = {
   scan: { capped: boolean; cap: number }
 }
 
-/** Slovak labels + the one-line explanation of what each rung means. */
-export const STAGE_LABEL: Record<Stage, string> = {
-  cart: "Košík",
-  checkout_entered: "Otvoril checkout",
-  address: "Vyplnil adresu",
-  delivery: "Zvolil dopravu",
-  payment: "Zvolil platbu",
-  review: "Súhrn objednávky",
-  completed: "Objednal",
-}
-
-export const STAGE_HINT: Record<Stage, string> = {
-  cart: "Košík s položkou alebo preukázaný ďalší krok",
-  checkout_entered: "Otvoril stránku /checkout",
-  address: "Uložená dodacia adresa",
-  delivery: "Vybraný spôsob dopravy",
-  payment: "Založená platobná relácia",
-  review: "Dostal sa na posledný krok",
-  completed: "Objednávka dokončená",
-}
-
 /**
  * Indigo → violet down the ladder, green at the end. The colour ramp is the
  * fastest read of "how deep did they get"; the final green makes conversions
@@ -179,22 +151,6 @@ export type SaleCandidate = {
   action_confidence: "low" | "high"
   observed_sessions: number
   observed_coverage: number
-}
-
-/** Slovak label + the reasoning, shown so the operator can disagree with it. */
-export const ACTION_LABEL: Record<RecommendedAction, string> = {
-  discount: "Zvážiť test zľavy",
-  free_shipping: "Preveriť dopravu",
-  investigate: "Preskúmať",
-}
-
-export const ACTION_WHY: Record<RecommendedAction, string> = {
-  discount:
-    "Pozorovaní zákazníci najčastejšie prestali pred dopravou. Skontrolujte produkt a cenu; tento krok neprezrádza dôvod.",
-  free_shipping:
-    "Pozorovaní zákazníci najčastejšie prestali pri doprave. Skontrolujte dostupnosť, cenu a termín doručenia.",
-  investigate:
-    "Preskúmajte krok a priebeh checkoutu. Samotný krok neurčuje príčinu.",
 }
 
 export const ACTION_COLOR: Record<RecommendedAction, string> = {

@@ -55,6 +55,7 @@
     "@types/react": "^18.3.2",
     "jest": "^29.7.0",
     "react": "^18.3.1",
+    "react-i18next": "13.5.0",
     "ts-node": "10.9.2",
     "typescript": "^5.6.2"
   },
@@ -64,7 +65,13 @@
     "@medusajs/icons": "^2.13.0",
     "@medusajs/medusa": "^2.13.0",
     "@medusajs/types": "^2.13.0",
-    "@medusajs/ui": "^4.0.0"
+    "@medusajs/ui": "^4.0.0",
+    "react-i18next": "^13.5.0 || ^18.0.1"
+  },
+  "peerDependenciesMeta": {
+    "react-i18next": {
+      "optional": true
+    }
   },
   "engines": {
     "node": ">=20"

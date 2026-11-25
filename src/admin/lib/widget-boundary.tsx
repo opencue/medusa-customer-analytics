@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react"
 import { AdminQueryProvider } from "./admin-query-client"
+import { useCheckoutTranslation } from "./checkout-i18n"
 
 type Props = {
   /** Human label shown in the fallback so the operator knows which widget broke. */
@@ -8,6 +9,11 @@ type Props = {
 }
 
 type State = { error: Error | null }
+
+const ErrorNotice = () => {
+  const { t } = useCheckoutTranslation()
+  return <div className="mt-1 text-xs text-ui-fg-subtle">{t("widgetError")}</div>
+}
 
 /**
  * Class-based error boundary scoped to a single admin widget.
@@ -56,9 +62,7 @@ export class WidgetBoundary extends Component<Props, State> {
           <div className="text-xs font-semibold uppercase tracking-wider text-ui-fg-error">
             {this.props.label}
           </div>
-          <div className="mt-1 text-xs text-ui-fg-subtle">
-            Widget zlyhal pri renderingu — zvyšok stránky funguje.
-          </div>
+          <ErrorNotice />
           <div className="mt-2 text-xs font-mono text-ui-fg-base whitespace-pre-wrap break-all">
             {message}
           </div>

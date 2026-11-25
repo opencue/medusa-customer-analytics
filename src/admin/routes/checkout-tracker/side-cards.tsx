@@ -1,6 +1,7 @@
 import { Text } from "@medusajs/ui"
 
-import { formatMoney } from "./format"
+import { useCheckoutTranslation } from "../../lib/checkout-i18n"
+import { formatCount, formatMoney } from "./format"
 import type { AbandonedProduct } from "./types"
 
 const ACCENT = "#6366f1"
@@ -18,11 +19,11 @@ export const ExitPaths = ({
 }: {
   rows: Array<{ path: string; count: number }>
 }) => {
+  const { t, locale } = useCheckoutTranslation()
   if (!rows.length) {
     return (
       <Text size="xsmall" className="mt-4 text-ui-fg-subtle">
-        Zatiaľ žiadne stránkové dáta. Zbierajú sa len od návštevníkov, ktorí
-        povolili analytické cookies.
+        {t("emptyExitPages")}
       </Text>
     )
   }
@@ -35,10 +36,10 @@ export const ExitPaths = ({
         <div key={row.path}>
           <div className="mb-1.5 flex items-baseline justify-between gap-x-3">
             <span className="truncate font-mono text-[11.5px] text-ui-fg-base">
-              {row.path}
+              <bdi>{row.path}</bdi>
             </span>
             <span className="shrink-0 text-[11px] tabular-nums text-ui-fg-subtle">
-              {row.count}
+              {formatCount(row.count, locale)}
             </span>
           </div>
           <div className="h-[7px] overflow-hidden rounded bg-ui-bg-component">
@@ -66,10 +67,11 @@ export const AbandonedProducts = ({
 }: {
   rows: AbandonedProduct[]
 }) => {
+  const { t, locale } = useCheckoutTranslation()
   if (!rows.length) {
     return (
       <Text size="xsmall" className="mt-4 text-ui-fg-subtle">
-        Žiadne opustené košíky v období.
+        {t("emptyProducts")}
       </Text>
     )
   }
@@ -101,7 +103,7 @@ export const AbandonedProducts = ({
                 {row.title}
               </span>
               <span className="shrink-0 text-[11px] tabular-nums text-ui-fg-subtle">
-                {row.carts} {row.carts === 1 ? "košík" : "košíkov"}
+                {t("carts", { value: formatCount(row.carts, locale) })}
               </span>
             </div>
             <div className="mt-1 h-[6px] overflow-hidden rounded bg-ui-bg-component">
@@ -116,7 +118,7 @@ export const AbandonedProducts = ({
             <div className="mt-1 flex items-baseline justify-between gap-x-3 text-[10.5px] text-ui-fg-muted">
               <span className="truncate font-mono">{row.sku ?? "—"}</span>
               <span className="tabular-nums">
-                {row.units} ks · {formatMoney(row.value, row.currency)}
+                {t("units", { value: formatCount(row.units, locale) })} · {formatMoney(row.value, row.currency, locale)}
               </span>
             </div>
           </div>
