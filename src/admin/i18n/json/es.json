@@ -8,7 +8,7 @@
   "loadError": "No se pudo cargar el seguimiento de compras (HTTP {{status}}).",
   "loading": "Cargando carritos…",
   "sample": "Solo se muestran los últimos {{limit}} carritos. No se incluyeron los carritos anteriores de este período.",
-  "adds": "Artículos añadidos al carrito",
+  "adds": "Adiciones al carrito completadas",
   "distinctCarts": "Carritos distintos: {{value}}",
   "addsRetention": "Desde el inicio del seguimiento, hasta {{hours}} h",
   "completed": "Procesos de compra completados",

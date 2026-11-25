@@ -27,7 +27,7 @@
   "lostValue": "Hylätyt: {{amount}}",
   "convertedValue": "Viimeistellyt: {{amount}}",
   "recommendations": "Suositukset hylätyille ostoskoreille",
-  "recommendationsHint": "Useimmissa hylätyissä ostoskoreissa esiintyvät tuotteet, joita ei myyty valitulla ajanjaksolla",
+  "recommendationsHint": "Hylätyissä ostoskoreissa yleisimmin esiintyvät tuotteet, joita ei myyty valitulla ajanjaksolla",
   "incomplete": "Tiedot ovat puutteelliset. Valitse lyhyempi ajanjakso, niin näet suositukset.",
   "confidence": "Pieni otos, rajallinen kattavuus tai epäselvät tulokset.",
   "emptyRecommendations": "Jokaista useammassa hylätyssä ostoskorissa ollutta tuotetta myytiin tällä ajanjaksolla vähintään kerran.",
