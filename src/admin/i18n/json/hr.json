@@ -8,6 +8,7 @@
   "loadError": "Podaci o praćenju kupnje nisu se mogli učitati (HTTP {{status}}).",
   "loading": "Učitavanje košarica…",
   "sample": "Prikazuju se samo najnovije košarice ({{limit}}). Starije košarice iz tog razdoblja nisu uključene.",
+  "rawSample": "Skeniranje je zaustavljeno nakon pregleda pohranjenih košarica ({{limit}}). Starije košarice iz tog razdoblja nisu uključene.",
   "adds": "Uspješna dodavanja u košaricu",
   "distinctCarts": "Jedinstvene košarice: {{value}}",
   "addsRetention": "Od početka praćenja, najviše {{hours}} h unatrag",

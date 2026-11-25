@@ -8,6 +8,7 @@
   "loadError": "Không thể tải dữ liệu theo dõi thanh toán (HTTP {{status}}).",
   "loading": "Đang tải giỏ hàng…",
   "sample": "Chỉ hiển thị {{limit}} giỏ hàng gần đây nhất. Các giỏ hàng cũ hơn trong khoảng thời gian này không được tính.",
+  "rawSample": "Quá trình quét dừng sau khi kiểm tra {{limit}} giỏ hàng đã lưu. Các giỏ hàng cũ hơn trong khoảng thời gian này không được tính.",
   "adds": "Lượt thêm vào giỏ hàng thành công",
   "distinctCarts": "Số giỏ hàng không trùng lặp: {{value}}",
   "addsRetention": "Từ lúc bắt đầu theo dõi, tối đa {{hours}} giờ",

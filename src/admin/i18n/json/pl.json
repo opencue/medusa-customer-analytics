@@ -8,6 +8,7 @@
   "loadError": "Nie udało się wczytać danych o finalizacji zakupów (HTTP {{status}}).",
   "loading": "Wczytywanie koszyków…",
   "sample": "Wyświetlana jest tylko próbka najnowszych koszyków ({{limit}}). Starsze koszyki z tego okresu nie zostały uwzględnione.",
+  "rawSample": "Skanowanie zatrzymano po sprawdzeniu zapisanych koszyków ({{limit}}). Starsze koszyki z tego okresu nie zostały uwzględnione.",
   "adds": "Udane dodania do koszyka",
   "distinctCarts": "Unikalne koszyki: {{value}}",
   "addsRetention": "Od początku monitorowania, maksymalnie {{hours}} godz.",

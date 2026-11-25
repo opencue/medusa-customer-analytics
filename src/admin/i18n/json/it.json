@@ -8,6 +8,7 @@
   "loadError": "Impossibile caricare il monitoraggio degli acquisti (HTTP {{status}}).",
   "loading": "Caricamento dei carrelli…",
   "sample": "Sono mostrati solo gli ultimi {{limit}} carrelli. I carrelli precedenti del periodo non sono inclusi.",
+  "rawSample": "La scansione si è interrotta dopo aver esaminato {{limit}} carrelli salvati. I carrelli precedenti del periodo non sono inclusi.",
   "adds": "Aggiunte al carrello riuscite",
   "distinctCarts": "Carrelli distinti: {{value}}",
   "addsRetention": "Dall’inizio del monitoraggio, fino a {{hours}} h",

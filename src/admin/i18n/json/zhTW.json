@@ -8,6 +8,7 @@
   "loadError": "無法載入結帳追蹤資料（HTTP {{status}}）。",
   "loading": "正在載入購物車…",
   "sample": "只顯示最近的 {{limit}} 個購物車。較早的購物車未納入這段期間的統計。",
+  "rawSample": "掃描 {{limit}} 個已儲存的購物車後停止。較早的購物車未納入這段期間的統計。",
   "adds": "成功加入購物車次數",
   "distinctCarts": "不重複購物車數：{{value}}",
   "addsRetention": "自開始追蹤起，最長 {{hours}} 小時",

@@ -8,6 +8,7 @@
   "loadError": "Checkout-Daten konnten nicht geladen werden (HTTP {{status}}).",
   "loading": "Warenkörbe werden geladen…",
   "sample": "Nur die neuesten {{limit}} Warenkörbe werden angezeigt. Ältere Warenkörbe in diesem Zeitraum wurden nicht berücksichtigt.",
+  "rawSample": "Die Suche wurde nach der Prüfung von {{limit}} gespeicherten Warenkörben beendet. Ältere Warenkörbe in diesem Zeitraum wurden nicht berücksichtigt.",
   "adds": "Erfolgreich zum Warenkorb hinzugefügt",
   "distinctCarts": "Unterschiedliche Warenkörbe: {{value}}",
   "addsRetention": "Seit Beginn der Erfassung, höchstens {{hours}} Std. zurück",

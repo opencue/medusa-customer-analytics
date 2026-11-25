@@ -8,6 +8,7 @@
   "loadError": "Kassapolun seurantatietoja ei voitu ladata (HTTP {{status}}).",
   "loading": "Ladataan ostoskoreja…",
   "sample": "Vain uusimmat ostoskorit näytetään ({{limit}} kpl). Ajanjakson vanhempia ostoskoreja ei huomioitu.",
+  "rawSample": "Haku lopetettiin, kun {{limit}} tallennettua ostoskoria oli tarkistettu. Ajanjakson vanhempia ostoskoreja ei huomioitu.",
   "adds": "Onnistuneet lisäykset ostoskoriin",
   "distinctCarts": "Eri ostoskoreja: {{value}}",
   "addsRetention": "Seurannan alusta, enintään {{hours}} tuntia taaksepäin",

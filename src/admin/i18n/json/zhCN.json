@@ -8,6 +8,7 @@
   "loadError": "无法加载结账追踪数据（HTTP {{status}}）。",
   "loading": "正在加载购物车…",
   "sample": "仅显示最近的 {{limit}} 个购物车。此期间内较早的购物车未纳入统计。",
+  "rawSample": "扫描 {{limit}} 个已保存的购物车后停止。此期间内较早的购物车未纳入统计。",
   "adds": "成功加入购物车次数",
   "distinctCarts": "不同购物车数：{{value}}",
   "addsRetention": "自开始追踪起，最长 {{hours}} 小时",

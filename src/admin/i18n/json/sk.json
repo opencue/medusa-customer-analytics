@@ -8,6 +8,7 @@
   "loadError": "Sledovanie checkoutu sa nepodarilo načítať (HTTP {{status}}).",
   "loading": "Načítavajú sa košíky…",
   "sample": "Zobrazujú sa iba najnovšie košíky (počet: {{limit}}). Staršie košíky z tohto obdobia nie sú zahrnuté.",
+  "rawSample": "Skenovanie sa zastavilo po kontrole uložených košíkov ({{limit}}). Staršie košíky z tohto obdobia nie sú zahrnuté.",
   "adds": "Úspešné pridania do košíka",
   "distinctCarts": "Rôzne košíky: {{value}}",
   "addsRetention": "Od začiatku merania, najviac za {{hours}} h",

@@ -8,6 +8,7 @@
   "loadError": "De afrekengegevens konden niet worden geladen (HTTP {{status}}).",
   "loading": "Winkelwagens laden…",
   "sample": "Alleen de nieuwste {{limit}} winkelwagens worden getoond. Oudere winkelwagens in deze periode zijn niet meegenomen.",
+  "rawSample": "Het doorzoeken is gestopt na {{limit}} opgeslagen winkelwagens. Oudere winkelwagens in deze periode zijn niet meegenomen.",
   "adds": "Geslaagde toevoegingen aan winkelwagen",
   "distinctCarts": "Unieke winkelwagens: {{value}}",
   "addsRetention": "Sinds de start van de meting, tot {{hours}} uur terug",

@@ -8,6 +8,7 @@
   "loadError": "Datele despre finalizarea comenzilor nu au putut fi încărcate (HTTP {{status}}).",
   "loading": "Se încarcă lista coșurilor…",
   "sample": "Sunt afișate doar cele mai recente coșuri ({{limit}}). Coșurile mai vechi din acest interval nu au fost incluse.",
+  "rawSample": "Scanarea s-a oprit după verificarea coșurilor salvate ({{limit}}). Coșurile mai vechi din acest interval nu au fost incluse.",
   "adds": "Adăugări reușite în coș",
   "distinctCarts": "Coșuri distincte: {{value}}",
   "addsRetention": "De la începerea monitorizării, maximum {{hours}} h",

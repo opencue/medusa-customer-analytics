@@ -8,6 +8,7 @@
   "loadError": "Satın alma takip verileri yüklenemedi (HTTP {{status}}).",
   "loading": "Sepetler yükleniyor…",
   "sample": "Yalnızca en son sepetler gösteriliyor ({{limit}}). Bu dönemin daha eski sepetleri dahil edilmedi.",
+  "rawSample": "Tarama, kayıtlı {{limit}} sepet incelendikten sonra durdu. Bu dönemin daha eski sepetleri dahil edilmedi.",
   "adds": "Başarılı sepete eklemeler",
   "distinctCarts": "Benzersiz sepet sayısı: {{value}}",
   "addsRetention": "Takibin başlangıcından itibaren, en fazla {{hours}} sa.",

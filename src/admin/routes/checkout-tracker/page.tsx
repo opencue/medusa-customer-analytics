@@ -12,7 +12,7 @@ import { SaleRecommendations } from "./sale-recommendations"
 import { SessionTable } from "./session-table"
 import { WinBack } from "./win-back"
 import { formatCount, formatMoney, formatPercent } from "./format"
-import type { Stage, TrackerResponse } from "./types"
+import type { CheckoutStatus, Stage, TrackerResponse } from "./types"
 
 /**
  * Checkout tracker — where shoppers give up between "added to cart" and
@@ -30,6 +30,7 @@ import type { Stage, TrackerResponse } from "./types"
 
 const RANGES = [7, 14, 30, 90] as const
 type RangeDays = (typeof RANGES)[number]
+const SESSION_STATUSES = ["active", "abandoned", "completed", "recovered"] as const
 
 const fetchTracker = async (days: number): Promise<TrackerResponse> => {
   const response = await fetch(
@@ -49,7 +50,7 @@ const Card = ({
   children,
 }: {
   title: string
-  sub: string
+  sub: ReactNode
   action?: ReactNode
   children: ReactNode
 }) => (
@@ -133,6 +134,7 @@ const CheckoutTrackerPage = () => {
   const count = (value: number) => formatCount(value, locale)
   const [days, setDays] = useState<RangeDays>(7)
   const [stageFilter, setStageFilter] = useState<Stage | null>(null)
+  const [statusFilter, setStatusFilter] = useState<CheckoutStatus | null>(null)
   const [onlyContactable, setOnlyContactable] = useState(false)
   const [promotionCode, setPromotionCode] = useState("")
 
@@ -153,12 +155,13 @@ const CheckoutTrackerPage = () => {
   // and the row the operator sees.
   const visitors = useMemo(() => {
     if (!data) return []
-    return data.visitors.filter(({ lead }) => {
+    return data.visitors.filter(({ lead, status }) => {
       if (stageFilter && lead.stage !== stageFilter) return false
+      if (statusFilter && status !== statusFilter) return false
       if (onlyContactable && !lead.email) return false
       return true
     })
-  }, [data, stageFilter, onlyContactable])
+  }, [data, stageFilter, statusFilter, onlyContactable])
 
   const contactable = useMemo(
     () =>
@@ -209,7 +212,9 @@ const CheckoutTrackerPage = () => {
         <>
           {data.scan.capped ? (
             <Notice>
-              {t("sample", { limit: count(data.scan.cap) })}
+              {data.scan.limited_by === "raw_cart_cap" && data.scan.raw_cap !== undefined
+                ? t("rawSample", { limit: count(data.scan.raw_cap) })
+                : t("sample", { limit: count(data.scan.carts) })}
             </Notice>
           ) : null}
 
@@ -318,9 +323,11 @@ const CheckoutTrackerPage = () => {
           <Card
             title={t("sessions")}
             sub={
-              stageFilter
-                ? t("lastStage", { stage: t(`stage.${stageFilter}`), value: count(visitors.length) })
-                : t("allSessions", { value: count(visitors.length) })
+              <span aria-live="polite">
+                {stageFilter
+                  ? t("lastStage", { stage: t(`stage.${stageFilter}`), value: count(visitors.length) })
+                  : t("allSessions", { value: count(visitors.length) })}
+              </span>
             }
             action={
               <button
@@ -337,6 +344,20 @@ const CheckoutTrackerPage = () => {
               </button>
             }
           >
+            <div role="group" aria-label={t("checkoutStatus")} className="mt-3 flex flex-wrap gap-1">
+              {SESSION_STATUSES.map((status) => (
+                <Button
+                  key={status}
+                  type="button"
+                  size="small"
+                  variant={statusFilter === status ? "secondary" : "transparent"}
+                  aria-pressed={statusFilter === status}
+                  onClick={() => setStatusFilter((current) => current === status ? null : status)}
+                >
+                  {t(`status.${status}`)}
+                </Button>
+              ))}
+            </div>
             <SessionTable visitors={visitors} now={now} />
           </Card>
 

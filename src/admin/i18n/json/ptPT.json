@@ -8,6 +8,7 @@
   "loadError": "Não foi possível carregar o acompanhamento da finalização da compra (HTTP {{status}}).",
   "loading": "A carregar carrinhos…",
   "sample": "São apresentados apenas os últimos {{limit}} carrinhos. Os carrinhos anteriores deste período não foram incluídos.",
+  "rawSample": "A análise parou depois de verificar {{limit}} carrinhos guardados. Os carrinhos anteriores deste período não foram incluídos.",
   "adds": "Adições ao carrinho com sucesso",
   "distinctCarts": "Carrinhos distintos: {{value}}",
   "addsRetention": "Desde o início do acompanhamento, até {{hours}} h",

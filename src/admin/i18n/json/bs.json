@@ -8,6 +8,7 @@
   "loadError": "Podaci o praćenju kupovine nisu se mogli učitati (HTTP {{status}}).",
   "loading": "Učitavanje korpi…",
   "sample": "Prikazuju se samo najnovije korpe ({{limit}}). Starije korpe iz ovog perioda nisu uključene.",
+  "rawSample": "Skeniranje je zaustavljeno nakon pregleda pohranjenih korpi ({{limit}}). Starije korpe iz ovog perioda nisu uključene.",
   "adds": "Uspješna dodavanja u korpu",
   "distinctCarts": "Jedinstvene korpe: {{value}}",
   "addsRetention": "Od početka praćenja, najviše {{hours}} h unazad",
