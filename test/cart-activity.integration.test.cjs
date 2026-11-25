@@ -48,6 +48,8 @@ test("native Store API records successful adds without counting failed requests 
   }
   const [failure] = await call(firstCart, "POST", { variant_id: "variant_intentionally_missing", quantity: 1 })
   assert.ok(failure >= 400 && failure < 500)
+  const [edit] = await call(`${firstCart}/${itemId}`, "POST", { quantity: 3 })
+  assert.equal(edit, 200)
   const [remove] = await call(`${firstCart}/${itemId}`, "DELETE")
   assert.equal(remove, 200)
 

@@ -11,11 +11,23 @@ export type OrderRow = {
 }
 
 /** Promotions target a whole product: sales of any of its variants count. */
-export const buildSoldProductIds = (orders: OrderRow[]): Set<string> => {
+export const buildSoldProductIds = (orders: OrderRow[], baskets: ProductBasket[] = []): Set<string> => {
   const sold = new Set<string>()
+  const unlinkedSkus = new Set<string>()
   for (const order of orders) {
     for (const item of order.items ?? []) {
-      if (item.product_id && toNumber(item.quantity) > 0) sold.add(item.product_id)
+      if (toNumber(item.quantity) <= 0) continue
+      if (item.product_id) sold.add(item.product_id)
+      else if (item.variant_sku?.trim()) unlinkedSkus.add(item.variant_sku.trim())
+    }
+  }
+  // Older order rows may only have a SKU. If it identifies a basket variant,
+  // disqualify the entire product, not just the matching variant/currency.
+  if (unlinkedSkus.size > 0) {
+    for (const { items } of baskets) {
+      for (const item of items) {
+        if (item.product_id && item.sku && unlinkedSkus.has(item.sku)) sold.add(item.product_id)
+      }
     }
   }
   return sold

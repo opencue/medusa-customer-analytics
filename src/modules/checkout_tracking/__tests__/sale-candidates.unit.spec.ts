@@ -114,6 +114,12 @@ describe("buildSaleCandidates — what gets on the list", () => {
     expect(rows[0].abandoned_carts).toBe(2)
   })
 
+  it("also excludes the whole product when a legacy sale matches a known variant SKU", () => {
+    const sessions = [session("cart"), ...carts(2, "cart", { items: [item({ sku: "OTHER-SIZE" })] })]
+    const soldProductIds = buildSoldProductIds([{ items: [{ variant_sku: "CINKA-20", quantity: 1 }] }], sessions)
+    expect(buildSaleCandidates({ sessions, soldProductIds })).toEqual([])
+  })
+
   it("counts a product once per cart across duplicate lines", () => {
     const rows = buildSaleCandidates({
       sessions: [

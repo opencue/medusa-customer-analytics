@@ -6,6 +6,7 @@ import CheckoutJourney from "./models/checkout-journey"
 import CheckoutCartAdd from "./models/checkout-cart-add"
 import {
   nextJourneyState,
+  mightHaveReturned,
   type JourneyRow,
   type TrackInput,
 } from "./lib/journey"
@@ -63,7 +64,11 @@ class CheckoutTrackingModuleService extends MedusaService({
    * endpoint that must not tell a prober which stage names exist, and a stray
    * beacon from a stale storefront bundle is expected noise, not an error.
    */
-  async track(input: TrackInput, now: Date = new Date()): Promise<void> {
+  async track(
+    input: TrackInput,
+    now: Date = new Date(),
+    readServerActivity?: () => Promise<Date | null>
+  ): Promise<void> {
     const apply = async (): Promise<boolean> => {
       const existing = (
         (await this.listCheckoutJourneys({
@@ -71,7 +76,10 @@ class CheckoutTrackingModuleService extends MedusaService({
         })) as JourneyRow[]
       )[0]
 
-      const patch = nextJourneyState(existing ?? null, input, now)
+      const server_activity_at = readServerActivity && mightHaveReturned(existing ?? null, now)
+        ? await readServerActivity()
+        : null
+      const patch = nextJourneyState(existing ?? null, { ...input, server_activity_at }, now)
       if (!patch) return true
 
       if (existing) {

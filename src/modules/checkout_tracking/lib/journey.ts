@@ -143,11 +143,8 @@ export const nextJourneyState = (
   const path = normalizePath(input.path)
   const locale = normalizeLocale(input.locale)
   const device = normalizeDevice(input.device)
-  const returned = existing && !existing.confirmed_returned_at &&
-    now.getTime() - Math.max(
-      asDate(existing.last_seen_at, now).getTime(),
-      asDate(input.server_activity_at ?? undefined, now).getTime()
-    ) >= ABANDONMENT_MS
+  const returned = mightHaveReturned(existing, now) &&
+    now.getTime() - asDate(input.server_activity_at ?? undefined, now).getTime() >= ABANDONMENT_MS
 
   return {
     cart_id: input.cart_id,
@@ -164,3 +161,8 @@ export const nextJourneyState = (
     ...(returned ? { confirmed_returned_at: now } : {}),
   }
 }
+
+/** Fast beacon-only check; no server snapshot is needed without an observed gap. */
+export const mightHaveReturned = (existing: JourneyRow | null, now: Date): boolean =>
+  !!existing && !existing.confirmed_returned_at &&
+  now.getTime() - asDate(existing.last_seen_at, now).getTime() >= ABANDONMENT_MS

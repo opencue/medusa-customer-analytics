@@ -136,10 +136,12 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   )
   const ordersCapped = orders.length > ORDER_SCAN_CAP
 
+  const baskets = capped || ordersCapped ? [] : abandonedProductBaskets(dashboard.visitors, isSaleProduct, saleProductKey)
   const sale_candidates = capped || ordersCapped ? [] : buildSaleCandidates({
-    sessions: abandonedProductBaskets(dashboard.visitors, isSaleProduct, saleProductKey),
+    sessions: baskets,
     soldProductIds: buildSoldProductIds(
-      orders.filter((order) => order.status !== "canceled" && order.status !== "draft")
+      orders.filter((order) => order.status !== "canceled" && order.status !== "draft"),
+      baskets
     ),
   })
 
