@@ -20,6 +20,7 @@ and is **not affiliated with, endorsed by, or maintained by Medusa** — see
 ## Table of contents
 
 - [What it does](#what-it-does)
+- [Dashboard preview and example data](#dashboard-preview-and-example-data)
 - [Facts at a glance](#facts-at-a-glance)
 - [Why two observers](#why-two-observers)
 - [Requirements](#requirements)
@@ -77,6 +78,37 @@ checking the product and possibly testing a discount; stopping at delivery
 suggests checking shipping options and costs; stopping at payment suggests
 checking payment friction. These are hypotheses, not causes. No products are
 selected for a promotion automatically.
+
+## Dashboard preview and example data
+
+These screenshots show the real Medusa Admin with fictional demo data. No
+customer records or live-shop metrics are shown.
+
+### Checkout overview
+
+![Checkout tracker with successful adds, distinct carts, checkout statuses and the seven-step funnel](docs/images/checkout-overview.webp)
+
+The demo shows **68 successful adds across 41 distinct carts**: 4 active,
+27 abandoned, and 10 completed, including 2 with an observed return. The funnel
+counts shoppers rather than add events; active carts are not treated as abandonment.
+
+### Product recommendations and win-back
+
+![Abandoned-product recommendations by checkout step and promo-code results for EUR and HUF](docs/images/checkout-win-back.webp)
+
+| Example | What to look for |
+|---|---|
+| **Commuter Backpack** | Different variants stalled at delivery. The recommendation groups the variants under one product and suggests checking shipping. |
+| **Desk Mat** | Several EUR shoppers stopped at the address step, while HUF carts show a different pattern. Read recommendations per currency. |
+| **Studio Lamp** | It appears in abandoned baskets, but a different variant sold. It is excluded from the never-sold recommendation list. |
+| **`WELCOME-BACK`** | Five example orders used this promotion code. EUR and HUF amounts are reported separately, not added together. |
+
+### Shopper sessions
+
+![Example sessions with anonymous and email-identified shoppers, different checkout stages and multiple currencies](docs/images/checkout-sessions.webp)
+
+The demo includes active, abandoned, completed, and completed-after-return
+sessions, plus anonymous shoppers and carts without page-level observations.
 
 ---
 
